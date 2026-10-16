@@ -7,6 +7,7 @@ import { $, toast } from './util.js';
 import { fontOptionsHtml, askCustomFont, cssFamily } from './fonts.js';
 import { addPhotos, clearPhotos, photoCount, photoUrl } from './photos.js';
 import { contentBox } from './renderer.js';
+import { BARCODE_FORMATS, isBarcode } from './code.js';
 
 /* ---------- Ikon (gaya tombol perataan seperti di Word) ---------- */
 
@@ -48,6 +49,15 @@ let currentId;
 let ctx; // { getColumns(), getSettings(), saveSettings(), onChange() }
 
 export const currentTemplate = () => templates.find((t) => t.id === currentId) ?? templates[0];
+
+/** Pakai sebuah kolom sebagai isi barcode/QR (dari generator kode). QR bila belum ada format. */
+export function useCodeColumn(column) {
+  const c = currentTemplate().code;
+  c.source = 'column';
+  c.column = column;
+  if (c.type === 'none') c.type = 'qr';
+  changed();
+}
 
 function changed({ lines = false, list = false } = {}) {
   saveTemplates(templates);
@@ -354,12 +364,24 @@ async function importPhotos(files) {
 
 function syncCodeControls(tpl) {
   const c = tpl.code;
-  setActive($('#tpl-code-type'), c.type);
+  const barcode = isBarcode(c.type);
+  setActive($('#tpl-code-type'), barcode ? 'barcode' : c.type);
   setActive($('#tpl-code-pos'), c.position);
+  setActive($('#tpl-code-src'), c.source);
   $('#tpl-code-opts').hidden = c.type === 'none';
+  $('#tpl-code-format').hidden = $('#tpl-code-format-label').hidden = !barcode;
+  $('#tpl-code-format').innerHTML = Object.entries(BARCODE_FORMATS)
+    .map(([k, f]) => `<option value="${k}"${k === c.type ? ' selected' : ''}>${f.label}</option>`).join('');
+  const fromText = c.source === 'text';
+  $('#tpl-code-col').hidden = $('#tpl-code-col-label').hidden = fromText;
+  $('#tpl-code-tpl').hidden = $('#tpl-code-tpl-label').hidden = !fromText;
+  if (document.activeElement !== $('#tpl-code-tpl')) $('#tpl-code-tpl').value = c.text;
+  $('#tpl-code-hint').textContent = c.type === 'none' ? ''
+    : (barcode ? `${BARCODE_FORMATS[c.type].label}: ${BARCODE_FORMATS[c.type].hint}. ` : 'QR code: teks apa saja, termasuk URL. ')
+      + (fromText ? 'Teks boleh berisi placeholder, mis. {{nim}}.' : '');
   $('#tpl-code-size').value = c.size;
   $('#tpl-code-text').checked = c.showText;
-  $('#tpl-code-text-row').hidden = c.type !== 'code128';
+  $('#tpl-code-text-row').hidden = !barcode;
   const vertical = c.position === 'top' || c.position === 'bottom';
   $('#tpl-code-size-label').textContent = c.type === 'qr' ? 'Ukuran (sisi)' : vertical ? 'Tinggi' : 'Lebar';
 
@@ -498,7 +520,8 @@ export function mountTemplateEditor(context) {
   });
 
   bindSeg('#tpl-code-type', (t, v) => {
-    t.code.type = v;
+    // "Barcode" memakai format barcode terakhir (default Code 128)
+    t.code.type = v === 'barcode' ? (isBarcode(t.code.lastBarcode) ? t.code.lastBarcode : 'code128') : v;
     // pilih kolom otomatis: kolom yang namanya mirip kode/nim/id, atau kolom pertama
     if (v !== 'none' && !t.code.column) {
       const cols = ctx.getColumns();
@@ -507,6 +530,17 @@ export function mountTemplateEditor(context) {
     if (v === 'qr' && t.code.position !== 'left' && t.code.position !== 'right') t.code.position = 'right';
   });
   bindSeg('#tpl-code-pos', (t, v) => { t.code.position = v; });
+  bindSeg('#tpl-code-src', (t, v) => { t.code.source = v; });
+  $('#tpl-code-format').addEventListener('change', (e) => {
+    const c = currentTemplate().code;
+    c.type = e.target.value;
+    c.lastBarcode = e.target.value;
+    changed();
+  });
+  $('#tpl-code-tpl').addEventListener('input', (e) => {
+    currentTemplate().code.text = e.target.value;
+    changed();
+  });
   $('#tpl-code-col').addEventListener('change', (e) => {
     currentTemplate().code.column = e.target.value;
     changed();

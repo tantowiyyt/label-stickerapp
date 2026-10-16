@@ -98,7 +98,7 @@ function drawText(doc, lines, box, tpl, map) {
 
 function drawCode(doc, code, g, tpl, map) {
   const bars = { ...g };
-  if (code.type === 'code128' && tpl.code.showText) {
+  if (code.type !== 'qr' && tpl.code.showText) {
     const cap = barcodeCaption(g);
     bars.h = g.h - cap.height;
     doc.setFont('helvetica', 'normal');

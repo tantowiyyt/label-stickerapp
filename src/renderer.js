@@ -1,4 +1,6 @@
-import { templateLines, parseMarkup, fillPlaceholders, columnMap, normColumn, groupKey, PALETTE, PHOTO_RATIOS, decalHeight } from './template.js';
+import {
+  templateLines, parseMarkup, fillPlaceholders, columnMap, normColumn, groupKey, PALETTE, PHOTO_RATIOS, decalHeight, codeActive,
+} from './template.js';
 import { photoUrl, photoKey } from './photos.js';
 import { fitLines, measureLines, LINE_HEIGHT } from './fit.js';
 import { cssFamily } from './fonts.js';
@@ -105,7 +107,7 @@ export function labelGeometry(tpl, p) {
 
   let code = null;
   const c = tpl.code;
-  if (c && c.type !== 'none' && c.column) {
+  if (codeActive(c)) {
     [code, rest] = carve(rest, c.position, c.size, c.type === 'qr', tpl);
   }
   return { box, band, text: rest, code, image, photo };
@@ -150,7 +152,7 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
   const colMap = columnMap(columns);
   const parsed = templateLines(tpl).map((text, i) => ({ style: tpl.lines[i], parts: parseMarkup(text) }));
   const geo = labelGeometry(tpl, p);
-  const codeCol = geo.code ? colMap.get(normColumn(tpl.code.column)) : null;
+  const codeCol = geo.code && tpl.code.source !== 'text' ? colMap.get(normColumn(tpl.code.column)) : null;
   const photoCol = geo.photo ? colMap.get(normColumn(tpl.photo.column)) : null;
 
   /** Foto untuk satu baris: { key, url } (url null bila belum ada fotonya), atau null bila fitur mati. */
@@ -227,8 +229,15 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
   }
 
   function codeFor(row) {
-    if (!geo.code || codeCol == null) return null;
-    const value = String(row.values[codeCol] ?? '').trim();
+    if (!geo.code) return null;
+    let value;
+    if (tpl.code.source === 'text') {
+      // mis. "https://kampus.ac.id/cek?nim={{nim}}" atau teks tetap
+      value = fillPlaceholders(tpl.code.text, row.values, colMap, { no: rowNo(row), tanggal: today }).trim();
+    } else {
+      if (codeCol == null) return null;
+      value = String(row.values[codeCol] ?? '').trim();
+    }
     const enc = encode(tpl.code.type, value);
     return enc ? { ...enc, value } : null;
   }
@@ -246,7 +255,7 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
     if (enc.error) {
       box.classList.add('label-code--error');
       box.textContent = enc.error;
-    } else if (enc.type === 'code128' && tpl.code.showText) {
+    } else if (enc.type !== 'qr' && tpl.code.showText) {
       const cap = barcodeCaption(geo.code);
       box.innerHTML = `<div class="code-bars" style="height:${geo.code.h - cap.height}mm">${codeSvg(enc)}</div>`;
       const caption = document.createElement('div');

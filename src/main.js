@@ -16,8 +16,10 @@ import { mountDataTable, renderDataTable } from './dataTable.js';
 import { createLabelRenderer, contentBox } from './renderer.js';
 import {
   mountTemplateEditor, renderColumns, renderPhotoControls, currentTemplate, updateDecal, selectDecal, getSelectedDecal,
+  useCodeColumn,
 } from './templateEditor.js';
 import { loadPhotos, clearPhotos, photoCount, photoUrl } from './photos.js';
+import { mountGenerator, openGenerator } from './generator.js';
 import { usedColumns, normColumn } from './template.js';
 import { printSheets, showPrintGuide } from './print.js';
 import { $, fmt, toast, downloadText } from './util.js';
@@ -368,7 +370,7 @@ const KEY_COLUMN = /^(nim|nis|nisn|nik|nip|id|kode|code|no_?peserta|no_?ujian|sk
 function keyColumn() {
   const tpl = currentTemplate();
   const cols = state.table.columns;
-  if (tpl.code.type !== 'none' && cols.includes(tpl.code.column)) return tpl.code.column;
+  if (tpl.code.type !== 'none' && tpl.code.source !== 'text' && cols.includes(tpl.code.column)) return tpl.code.column;
   return cols.find((c) => KEY_COLUMN.test(normColumn(c))) ?? null;
 }
 
@@ -378,7 +380,7 @@ function dataWarnings() {
   const active = rows.filter((r) => r.on);
   const tpl = currentTemplate();
   const used = new Set(usedColumns(tpl, columns));
-  if (tpl.code.type !== 'none' && columns.includes(tpl.code.column)) used.add(tpl.code.column);
+  if (tpl.code.type !== 'none' && tpl.code.source !== 'text' && columns.includes(tpl.code.column)) used.add(tpl.code.column);
   const warnings = [];
   for (const col of used) {
     const empty = active.filter((r) => !String(r.values[col] ?? '').trim()).length;
@@ -584,18 +586,38 @@ $('#btn-col-add').addEventListener('click', () => {
   renderDataSummary();
 });
 
+/* ---------------- Generator QR / Barcode ---------------- */
+
+mountGenerator({
+  getTable: () => state.table,
+  /** values: Map(baris → kode). Kolom dibuat bila belum ada; bisa diurungkan. */
+  fillColumn(col, values, useForLabel) {
+    snapshot(`isi kolom "${col}"`);
+    if (!state.table.columns.includes(col)) addColumn(state.table, col);
+    for (const [row, code] of values) row.values[col] = code;
+    saveTable(state.table);
+    renderColumns();
+    refreshTable();
+    renderDataSummary();
+    if (useForLabel) useCodeColumn(col);
+    else if (state.tab === 'preview') renderPreview();
+  },
+});
+$('#btn-gen-open').addEventListener('click', () => openGenerator('single'));
+$('#btn-gen-open-2').addEventListener('click', () => openGenerator('fill'));
+
 /* ---------------- Tab ---------------- */
 
 function showTab(tab) {
   state.tab = tab;
-  for (const btn of document.querySelectorAll('.tab')) btn.classList.toggle('tab--active', btn.dataset.tab === tab);
+  for (const btn of document.querySelectorAll('.tab[data-tab]')) btn.classList.toggle('tab--active', btn.dataset.tab === tab);
   $('#view-preview').hidden = tab !== 'preview';
   $('#view-data').hidden = tab !== 'data';
   $('#preview-controls').hidden = tab !== 'preview';
   if (tab === 'preview') renderPreview();
 }
 
-for (const btn of document.querySelectorAll('.tab')) {
+for (const btn of document.querySelectorAll('.tab[data-tab]')) {
   btn.addEventListener('click', () => showTab(btn.dataset.tab));
 }
 

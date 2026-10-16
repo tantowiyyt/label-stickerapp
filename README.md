@@ -133,7 +133,16 @@ Nilai dianggap sama tanpa memperhatikan huruf besar/kecil dan spasi berlebih. Ba
 
 ## Barcode / QR code
 
-Di *Isi Label → Barcode / QR code*: pilih **Barcode** (Code128) atau **QR code**, kolom sumbernya (mis. `nim`), posisi (bawah/atas/kiri/kanan), dan ukurannya. Teks label otomatis menyesuaikan sisa ruang. Isi yang tidak bisa dijadikan barcode (mis. huruf non-ASCII) ditandai merah di preview dan tidak dicetak.
+Di *Isi Label → Barcode / QR code*:
+
+- **Format**: QR code, Code 128 (paling umum), Code 39, EAN-13, EAN-8, UPC-A, ITF. Untuk EAN/UPC cukup isi 12/7/11 digit, checksum dihitung otomatis.
+- **Isi kode**: *Dari kolom* (mis. `nim`) atau *Teks / rumus* yang boleh berisi placeholder, mis. `https://kampus.ac.id/cek?nim={{nim}}`, atau teks tetap (URL website yang sama di semua label).
+- Posisi (bawah/atas/kiri/kanan) dan ukuran bisa diatur; teks label otomatis menyesuaikan sisa ruang. Isi yang tidak valid untuk formatnya ditandai merah di preview dan tidak dicetak.
+
+**Generator QR / Barcode** (tombol di bagian Barcode / QR code, atau *Generator kode* di tab Data):
+
+- **Buat satu kode**: ketik teks/URL apa saja, pilih format, lalu **Download PNG** atau **Download SVG** (vektor) untuk dipakai di tempat lain.
+- **Isi kolom kode otomatis**: buat kode unik untuk setiap baris, berupa **nomor urut** (awalan + nomor dengan jumlah digit tetap + akhiran, mis. `PST-0001`) atau **acak unik** (tanpa huruf/angka yang mudah tertukar seperti O/0, I/1). Kode disimpan di kolom baru (bisa diurungkan) dan langsung bisa dipakai untuk barcode/QR di label.
 
 ## Opsi cetak (panel ④ Printer & Cetak)
 

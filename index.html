@@ -170,11 +170,19 @@
               <div class="sub-title">Barcode / QR code</div>
               <div class="seg seg--text" id="tpl-code-type">
                 <button type="button" class="ibtn" data-value="none">Tidak ada</button>
-                <button type="button" class="ibtn" data-value="code128">Barcode</button>
+                <button type="button" class="ibtn" data-value="barcode">Barcode</button>
                 <button type="button" class="ibtn" data-value="qr">QR code</button>
               </div>
               <div id="tpl-code-opts" class="tool-grid tool-grid--code">
-                <span>Isi dari kolom</span><select id="tpl-code-col" aria-label="Kolom untuk barcode/QR"></select>
+                <span id="tpl-code-format-label">Format</span><select id="tpl-code-format" aria-label="Format barcode"></select>
+                <span>Isi kode</span>
+                <div class="seg seg--text" id="tpl-code-src">
+                  <button type="button" class="ibtn" data-value="column">Dari kolom</button>
+                  <button type="button" class="ibtn" data-value="text">Teks / rumus</button>
+                </div>
+                <span id="tpl-code-col-label">Kolom</span><select id="tpl-code-col" aria-label="Kolom untuk barcode/QR"></select>
+                <span id="tpl-code-tpl-label">Teks</span>
+                <input type="text" id="tpl-code-tpl" placeholder="mis. https://kampus.ac.id/cek?nim={{nim}}" spellcheck="false" />
                 <span>Posisi</span>
                 <div class="seg seg--text" id="tpl-code-pos">
                   <button type="button" class="ibtn" data-value="bottom">Bawah</button>
@@ -186,6 +194,10 @@
                 <div class="input-unit input-unit--sm"><input type="number" id="tpl-code-size" min="3" step="1" /><em>mm</em></div>
                 <span></span>
                 <label class="switch switch--inline" id="tpl-code-text-row"><input type="checkbox" id="tpl-code-text" /><span class="switch-ui"></span>Tampilkan teks di bawah barcode</label>
+              </div>
+              <p class="hint" id="tpl-code-hint"></p>
+              <div class="btn-row">
+                <button type="button" id="btn-gen-open" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx=".5"/><rect x="9" y="2" width="5" height="5" rx=".5"/><rect x="2" y="9" width="5" height="5" rx=".5"/><path d="M9.5 9.5h1.5v1.5M13.5 9.5v4M9.5 13.5h2"/></svg>Generator QR / Barcode…</button>
               </div>
 
               <div class="sub-title">Warna per kelompok</div>
@@ -416,6 +428,7 @@
               <label class="search"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input type="search" id="data-search" placeholder="Cari nama, NIM, …" /></label>
               <button type="button" id="btn-export-csv" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export CSV</button>
               <button type="button" id="btn-export-xlsx" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export Excel</button>
+              <button type="button" id="btn-gen-open-2" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx=".5"/><rect x="9" y="2" width="5" height="5" rx=".5"/><rect x="2" y="9" width="5" height="5" rx=".5"/><path d="M9.5 9.5h1.5v1.5M13.5 9.5v4M9.5 13.5h2"/></svg>Generator kode</button>
               <span class="hint" id="data-info"></span>
             </div>
             <div id="data-warn" class="data-warn"></div>
@@ -480,6 +493,62 @@
           <button type="button" id="reset-all" class="ghost">Pilih semua</button>
           <button value="cancel">Batal</button>
           <button value="ok" id="reset-confirm" class="primary primary--danger">Reset</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="gen-dialog" class="gen-dialog">
+      <form method="dialog">
+        <h2>Generator QR / Barcode</h2>
+        <div class="tabs gen-tabs">
+          <button type="button" class="tab tab--active" data-gen-tab="single">Buat satu kode</button>
+          <button type="button" class="tab" data-gen-tab="fill">Isi kolom kode otomatis</button>
+        </div>
+
+        <div class="gen-pane" data-gen-pane="single">
+          <div class="gen-single">
+            <div class="gen-form">
+              <label class="field"><span>Isi (teks, angka, URL, …)</span>
+                <textarea id="gen-text" rows="3" spellcheck="false">https://contoh.ac.id</textarea></label>
+              <label class="field"><span>Format</span><select id="gen-format"></select></label>
+              <p class="hint" id="gen-hint"></p>
+              <label class="check"><input type="checkbox" id="gen-caption" checked /> Teks di bawah barcode</label>
+            </div>
+            <div class="gen-preview-wrap">
+              <div id="gen-preview" class="gen-preview"></div>
+              <div id="gen-error" class="gen-error"></div>
+            </div>
+          </div>
+          <div class="btn-row btn-row--end">
+            <button type="button" id="gen-png" class="ghost">Download PNG</button>
+            <button type="button" id="gen-svg" class="ghost">Download SVG</button>
+            <button value="close">Tutup</button>
+          </div>
+        </div>
+
+        <div class="gen-pane" data-gen-pane="fill" hidden>
+          <p class="hint hint--top">Membuat kode unik untuk setiap baris data, lalu menyimpannya di kolom. Kolom ini bisa dipakai untuk barcode/QR atau placeholder <code>{{kode}}</code>.</p>
+          <div class="grid-form">
+            <label class="field"><span>Nama kolom</span><input type="text" id="gen-col" value="kode" /></label>
+            <div class="field"><span>Jenis kode</span>
+              <div class="seg seg--text" id="gen-mode">
+                <button type="button" class="ibtn active" data-value="seq">Nomor urut</button>
+                <button type="button" class="ibtn" data-value="rand">Acak unik</button>
+              </div>
+            </div>
+            <label class="field"><span>Awalan</span><input type="text" id="gen-prefix" value="PST-" /></label>
+            <label class="field"><span>Akhiran</span><input type="text" id="gen-suffix" value="" /></label>
+            <label class="field gen-seq"><span>Mulai dari</span><input type="number" id="gen-start" value="1" min="0" step="1" /></label>
+            <label class="field gen-seq"><span>Jumlah digit</span><input type="number" id="gen-digits" value="4" min="1" max="12" step="1" /></label>
+            <label class="field gen-rand" hidden><span>Panjang acak</span><input type="number" id="gen-rlen" value="8" min="4" max="24" step="1" /></label>
+          </div>
+          <label class="check"><input type="checkbox" id="gen-only-on" /> Hanya baris yang dicentang</label>
+          <label class="check"><input type="checkbox" id="gen-use" checked /> Pakai kolom ini untuk barcode/QR di label</label>
+          <div class="stat-box" id="gen-sample"></div>
+          <div class="btn-row btn-row--end">
+            <button value="close">Batal</button>
+            <button type="button" id="gen-fill" class="primary">Isi kolom</button>
+          </div>
         </div>
       </form>
     </dialog>

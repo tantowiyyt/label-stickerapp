@@ -3,6 +3,9 @@ import { downloadText } from './util.js';
 import { DEFAULT_FONT, cleanFontName } from './fonts.js';
 import { CODE_TYPES, CODE_POSITIONS } from './code.js';
 
+/** Barcode/QR aktif: format dipilih dan isinya (kolom atau teks) sudah diisi. */
+export const codeActive = (c) => !!c && c.type !== 'none' && (c.source === 'text' ? !!c.text.trim() : !!c.column);
+
 // Template isi label. Teks berisi placeholder {{kolom}} dan markup inline
 // **tebal** / *miring*. Setiap baris teks punya gaya sendiri di `lines[i]`.
 
@@ -34,7 +37,8 @@ export const DEFAULT_TEMPLATE = {
   padding: 2, // mm
   uniformFont: false,
   hideEmpty: false, // sembunyikan baris yang semua placeholdernya kosong
-  code: { type: 'none', column: '', position: 'bottom', size: 12, showText: true }, // barcode/QR, size dalam mm
+  // barcode/QR: isi dari kolom (source 'column') atau dari teks berisi placeholder (source 'text'); size dalam mm
+  code: { type: 'none', source: 'column', column: '', text: '', position: 'bottom', size: 12, showText: true },
   colorRule: { column: '', target: 'none', band: 4, colors: {} }, // warna per kelompok (mis. program studi)
   image: { src: '', w: 0, h: 0, position: 'left', size: 12 }, // logo; src = data URL, w/h = ukuran asli (px)
   photo: { column: '', position: 'left', size: 18, ratio: '3x4' }, // foto per orang, dicocokkan lewat kolom
@@ -276,6 +280,8 @@ function normalizeCode(raw = {}) {
   const size = Number(raw.size);
   return {
     type: pick(raw.type, CODE_TYPES, 'none'),
+    source: raw.source === 'text' ? 'text' : 'column',
+    text: String(raw.text ?? ''),
     column: String(raw.column ?? ''),
     position: pick(raw.position, CODE_POSITIONS, 'bottom'),
     size: Number.isFinite(size) && size > 0 ? size : 12,
