@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cetak Label</title>
+    <style id="print-page-style"></style>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/><path d="M8 13h8M8 16.5h5"/></svg></span>
+          <div>
+            <h1>Cetak Label</h1>
+            <span class="topbar-sub">Label stiker T&amp;J dan sejenisnya · offline</span>
+          </div>
+        </div>
+        <div class="topbar-stats" id="stats"></div>
+        <div class="topbar-actions">
+          <button type="button" id="btn-print-test" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M8 2.5v11M2.5 8h11"/></svg>Halaman Tes</button>
+          <button type="button" id="btn-pdf-top" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M6 9.5h5M6 12h3.5"/></svg>PDF</button>
+          <button type="button" id="btn-print" class="primary"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6V2.5h7V6"/><rect x="2" y="6" width="12" height="5" rx="1"/><path d="M4.5 9h7v4.5h-7z"/></svg>Cetak Label</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="panel">
+          <details class="section" data-section="data" open>
+            <summary>
+              <span class="step">1</span>
+              <span class="section-title"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6 6.5V13"/></svg>Data</span>
+              <span class="section-meta" id="meta-data"></span>
+              <svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            </summary>
+            <div class="section-body">
+              <div class="btn-row btn-row--grid">
+                <button type="button" id="btn-csv" class="primary"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.7 8 2.5l3.2 3.2M2.5 10v3.5h11V10"/></svg>Import CSV / Excel</button>
+                <button type="button" id="btn-paste"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3" width="9" height="11" rx="1.5"/><path d="M6 3V2h4v1M6 7h4M6 10h3"/></svg>Paste dari Excel</button>
+                <input type="file" id="file-csv" accept=".csv,.txt,.xlsx,.xls,.xlsm,.ods,text/csv" hidden />
+              </div>
+              <div class="stat-box" id="data-summary"></div>
+              <p class="hint">File <b>.csv</b>, <b>.xlsx</b>, atau <b>.xls</b>. Baris pertama = nama kolom. Pemisah koma / titik koma dideteksi otomatis.
+                Kolom <b>jumlah</b> (opsional) menentukan berapa kali tiap baris dicetak.</p>
+              <div class="btn-row">
+                <button type="button" id="btn-sample" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Contoh CSV</button>
+                <button type="button" id="btn-sample-xlsx" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Contoh Excel</button>
+                <button type="button" id="btn-data-clear" class="ghost danger"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M6.5 4.5V2.5h3v2M4 4.5l.7 9h6.6l.7-9"/></svg>Kosongkan</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="section" data-section="isi" open>
+            <summary>
+              <span class="step">2</span>
+              <span class="section-title"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10M8 3.5v9.5M5.5 13h5"/></svg>Isi Label</span>
+              <span class="section-meta" id="meta-tpl"></span>
+              <svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            </summary>
+            <div class="section-body">
+              <div class="tpl-picker">
+                <select id="tpl-select" aria-label="Template"></select>
+                <button type="button" id="tpl-save-as" class="icon-btn" title="Simpan sebagai template baru"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8l2.5 2.5v8.5h-11z"/><path d="M5 2.5v3.5h5V2.5M5 13.5V9.5h6v4"/></svg></button>
+                <button type="button" id="tpl-del" class="icon-btn danger" title="Hapus template"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M6.5 4.5V2.5h3v2M4 4.5l.7 9h6.6l.7-9"/></svg></button>
+              </div>
+              <label class="field">
+                <span>Nama template</span>
+                <input type="text" id="tpl-name" />
+              </label>
+
+              <div class="field">
+                <span>Kolom data <em class="muted">— klik untuk menyisipkan</em></span>
+                <div id="tpl-columns" class="chips"></div>
+              </div>
+              <label class="field">
+                <span>Isi label</span>
+                <textarea id="tpl-text" rows="5" spellcheck="false"></textarea>
+              </label>
+              <p class="hint">Mau menambah <b>logo/gambar</b>? Lihat bagian <a href="#tpl-img-thumb" class="jump-link">Logo / gambar</a> di bawah.</p>
+              <p class="hint">Format: <code>{{nama|upper}}</code> HURUF BESAR · <code>|lower</code> · <code>|title</code> Kapital Tiap Kata.
+                Khusus: <code>{{no}}</code> nomor urut, <code>{{tanggal}}</code> hari ini.</p>
+              <p class="hint"><code>**teks**</code> tebal · <code>*teks*</code> miring · contoh <code>**{{nama}}**</code></p>
+              <div id="tpl-warn"></div>
+
+              <div class="sub-title">Gaya cepat</div>
+              <div class="quick">
+                <button type="button" data-quick="judul"><b>Judul</b> tebal</button>
+                <button type="button" data-quick="tebal"><b>Semua tebal</b></button>
+                <button type="button" data-quick="normal">Normal</button>
+              </div>
+
+              <div class="sub-title">Gaya per baris</div>
+              <div id="tpl-lines" class="line-list"></div>
+
+              <div class="sub-title">Tata letak isi</div>
+              <div class="tool-grid">
+                <span>Font</span><select id="tpl-font" aria-label="Font global"></select>
+                <span>Rata horizontal</span><div class="seg" id="tpl-align"></div>
+                <span>Rata vertikal</span><div class="seg" id="tpl-valign"></div>
+                <span>Orientasi isi</span><div class="seg" id="tpl-orient"></div>
+                <span>Padding</span>
+                <div class="input-unit input-unit--sm"><input type="number" id="tpl-padding" min="0" step="0.5" /><em>mm</em></div>
+              </div>
+              <label class="switch"><input type="checkbox" id="tpl-uniform" /><span class="switch-ui"></span>Ukuran font sama untuk semua label</label>
+              <label class="switch"><input type="checkbox" id="tpl-hide-empty" /><span class="switch-ui"></span>Sembunyikan baris yang datanya kosong</label>
+              <p class="hint hint--icon"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.2"/></svg><span>Teks terlalu panjang otomatis diperkecil (min. 6 pt); baru di-wrap bila di 6 pt masih tidak muat.</span></p>
+
+              <div class="sub-title">Logo / gambar</div>
+              <div class="logo-row">
+                <div class="logo-thumb" id="tpl-img-thumb">Belum ada</div>
+                <div class="btn-row btn-row--tight">
+                  <button type="button" id="tpl-img-pick" class="ghost">Pilih gambar…</button>
+                  <button type="button" id="tpl-img-del" class="ghost danger">Hapus</button>
+                  <input type="file" id="tpl-img-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden />
+                </div>
+              </div>
+              <div id="tpl-img-opts" class="tool-grid tool-grid--code">
+                <span>Posisi</span>
+                <div class="seg seg--text" id="tpl-img-pos">
+                  <button type="button" class="ibtn" data-value="left">Kiri</button>
+                  <button type="button" class="ibtn" data-value="right">Kanan</button>
+                  <button type="button" class="ibtn" data-value="top">Atas</button>
+                  <button type="button" class="ibtn" data-value="bottom">Bawah</button>
+                </div>
+                <span id="tpl-img-size-label">Lebar area</span>
+                <div class="input-unit input-unit--sm"><input type="number" id="tpl-img-size" min="2" step="0.5" /><em>mm</em></div>
+              </div>
+
+              <div class="sub-title">Gambar bebas (branding)</div>
+              <p class="hint hint--top">Gambar yang bisa <b>digeser langsung di preview</b> (logo sponsor, watermark, ornamen). Tarik pojok kanan bawah gambar untuk mengubah ukuran. Berlaku untuk semua label.</p>
+              <div class="btn-row btn-row--tight">
+                <button type="button" id="dc-add" class="ghost">+ Tambah gambar…</button>
+                <input type="file" id="dc-file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden />
+              </div>
+              <div id="dc-list" class="dc-list"></div>
+
+              <div class="sub-title">Foto per orang</div>
+              <p class="hint hint--top">Pas foto tiap orang, dicocokkan dengan nama file. Contoh: file <code>20230001.jpg</code> dipakai untuk baris dengan NIM 20230001.</p>
+              <div class="tool-grid">
+                <span>Cocokkan dengan kolom</span><select id="ph-col" aria-label="Kolom pencocok foto"></select>
+              </div>
+              <div class="btn-row">
+                <button type="button" id="ph-add" class="ghost">Tambah foto…</button>
+                <button type="button" id="ph-folder" class="ghost">Pilih folder…</button>
+                <button type="button" id="ph-clear" class="ghost danger">Hapus semua foto</button>
+                <input type="file" id="ph-files" accept="image/*" multiple hidden />
+                <input type="file" id="ph-dir" webkitdirectory multiple hidden />
+              </div>
+              <div class="stat-box" id="ph-info"></div>
+              <div id="ph-opts" class="tool-grid tool-grid--code">
+                <span>Posisi</span>
+                <div class="seg seg--text" id="ph-pos">
+                  <button type="button" class="ibtn" data-value="left">Kiri</button>
+                  <button type="button" class="ibtn" data-value="right">Kanan</button>
+                  <button type="button" class="ibtn" data-value="top">Atas</button>
+                  <button type="button" class="ibtn" data-value="bottom">Bawah</button>
+                </div>
+                <span id="ph-size-label">Lebar area</span>
+                <div class="input-unit input-unit--sm"><input type="number" id="ph-size" min="3" step="0.5" /><em>mm</em></div>
+                <span>Bentuk foto</span>
+                <div class="seg seg--text" id="ph-ratio">
+                  <button type="button" class="ibtn" data-value="3x4">3×4</button>
+                  <button type="button" class="ibtn" data-value="2x3">2×3</button>
+                  <button type="button" class="ibtn" data-value="4x6">4×6</button>
+                  <button type="button" class="ibtn" data-value="1x1">1×1</button>
+                </div>
+              </div>
+              <p class="hint">Foto disimpan di browser ini (tidak ikut file backup). Kotak "tanpa foto" hanya terlihat di preview.</p>
+
+              <div class="sub-title">Barcode / QR code</div>
+              <div class="seg seg--text" id="tpl-code-type">
+                <button type="button" class="ibtn" data-value="none">Tidak ada</button>
+                <button type="button" class="ibtn" data-value="code128">Barcode</button>
+                <button type="button" class="ibtn" data-value="qr">QR code</button>
+              </div>
+              <div id="tpl-code-opts" class="tool-grid tool-grid--code">
+                <span>Isi dari kolom</span><select id="tpl-code-col" aria-label="Kolom untuk barcode/QR"></select>
+                <span>Posisi</span>
+                <div class="seg seg--text" id="tpl-code-pos">
+                  <button type="button" class="ibtn" data-value="bottom">Bawah</button>
+                  <button type="button" class="ibtn" data-value="top">Atas</button>
+                  <button type="button" class="ibtn" data-value="left">Kiri</button>
+                  <button type="button" class="ibtn" data-value="right">Kanan</button>
+                </div>
+                <span id="tpl-code-size-label">Tinggi</span>
+                <div class="input-unit input-unit--sm"><input type="number" id="tpl-code-size" min="3" step="1" /><em>mm</em></div>
+                <span></span>
+                <label class="switch switch--inline" id="tpl-code-text-row"><input type="checkbox" id="tpl-code-text" /><span class="switch-ui"></span>Tampilkan teks di bawah barcode</label>
+              </div>
+
+              <div class="sub-title">Warna per kelompok</div>
+              <p class="hint hint--top">Beri warna berbeda per nilai sebuah kolom, misalnya per <b>program studi</b>.</p>
+              <div class="tool-grid">
+                <span>Kelompokkan menurut</span><select id="grp-col" aria-label="Kolom pengelompokan warna"></select>
+              </div>
+              <div id="grp-opts">
+                <div class="tool-grid tool-grid--code">
+                  <span>Warnai</span>
+                  <div class="seg seg--text" id="grp-target">
+                    <button type="button" class="ibtn" data-value="text">Teks</button>
+                    <button type="button" class="ibtn" data-value="background">Latar</button>
+                    <button type="button" class="ibtn" data-value="band">Strip atas</button>
+                  </div>
+                  <span id="grp-band-label">Tebal strip</span>
+                  <div class="input-unit input-unit--sm" id="grp-band-wrap"><input type="number" id="grp-band" min="1" step="0.5" /><em>mm</em></div>
+                </div>
+                <div id="grp-list" class="grp-list"></div>
+                <div class="btn-row">
+                  <button type="button" id="grp-auto" class="ghost">Warna otomatis</button>
+                </div>
+                <p class="hint">Teks yang warnanya hitam ikut diwarnai (mode Teks) atau otomatis menjadi putih bila latarnya gelap (mode Latar).
+                  Baris yang sudah diberi warna sendiri di <i>Gaya per baris</i> tidak berubah.</p>
+              </div>
+
+              <details class="more">
+                <summary>Export / import template</summary>
+                <div class="btn-row">
+                  <button type="button" id="tpl-export" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export JSON</button>
+                  <button type="button" id="tpl-import" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.7 8 2.5l3.2 3.2M2.5 10v3.5h11V10"/></svg>Import JSON</button>
+                  <input type="file" id="tpl-file" accept=".json,application/json" hidden />
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="section" data-section="ukuran" open>
+            <summary>
+              <span class="step">3</span>
+              <span class="section-title"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="5" width="13" height="6" rx="1"/><path d="M4.5 5v2.5M7 5v1.5M9.5 5v2.5M12 5v1.5"/></svg>Ukuran Label</span>
+              <span class="section-meta" id="meta-size"></span>
+              <svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            </summary>
+            <div class="section-body">
+              <div class="tpl-picker">
+                <select id="preset-select" aria-label="Ukuran label"></select>
+                <button type="button" id="btn-preset-new" class="icon-btn" title="Tambah ukuran baru"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+                <button type="button" id="btn-preset-dup" class="icon-btn" title="Duplikat ukuran ini"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M11 5V3.5a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1V10a1 1 0 0 0 1 1H5"/></svg></button>
+                <button type="button" id="btn-preset-del" class="icon-btn danger" title="Hapus ukuran ini"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M6.5 4.5V2.5h3v2M4 4.5l.7 9h6.6l.7-9"/></svg></button>
+              </div>
+              <div class="stat-box" id="preset-summary"></div>
+
+              <details class="more" id="preset-details">
+                <summary>Atur ukuran, margin &amp; jarak</summary>
+                <div id="preset-form" class="grid-form"></div>
+                <div class="btn-row">
+                  <button type="button" id="btn-center" class="ghost" title="Hitung margin kiri &amp; atas agar susunan label di tengah kertas">Tengahkan di kertas</button>
+                  <button type="button" id="btn-preset-default" class="ghost" title="Kembalikan nilai bawaan untuk ukuran ini saja">Kembalikan ukuran ini ke bawaan</button>
+                </div>
+              </details>
+
+              <details class="more">
+                <summary>Export / import / reset</summary>
+                <div class="btn-row">
+                  <button type="button" id="btn-export" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export JSON</button>
+                  <button type="button" id="btn-import" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.7 8 2.5l3.2 3.2M2.5 10v3.5h11V10"/></svg>Import JSON</button>
+                  <input type="file" id="file-import" accept=".json,application/json" hidden />
+                </div>
+                <div class="btn-row">
+                  <button type="button" id="btn-reset" class="ghost danger">Kembalikan preset bawaan</button>
+                </div>
+                <p class="hint">Reset hanya mengembalikan nilai preset bawaan. Ukuran custom tidak dihapus.</p>
+              </details>
+            </div>
+          </details>
+
+          <details class="section" data-section="printer" open>
+            <summary>
+              <span class="step">4</span>
+              <span class="section-title"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6V2.5h7V6"/><rect x="2" y="6" width="12" height="5" rx="1"/><path d="M4.5 9h7v4.5h-7z"/></svg>Printer &amp; Cetak</span>
+              <span class="section-meta" id="meta-print"></span>
+              <svg class="i chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            </summary>
+            <div class="section-body">
+              <div class="sub-title sub-title--first">Kertas di printer</div>
+              <label class="field">
+                <span>Ukuran halaman yang dicetak</span>
+                <select id="media-mode"></select>
+              </label>
+              <div id="media-custom" class="grid-form grid-form--tight">
+                <label class="field">
+                  <span>Lebar kertas printer</span>
+                  <div class="input-unit"><input type="number" id="media-w" min="10" step="0.5" /><em>mm</em></div>
+                </label>
+                <label class="field">
+                  <span>Tinggi kertas printer</span>
+                  <div class="input-unit"><input type="number" id="media-h" min="10" step="0.5" /><em>mm</em></div>
+                </label>
+                <div class="field">
+                  <span>Posisi horizontal</span>
+                  <div class="seg seg--text" id="media-ax">
+                    <button type="button" class="ibtn" data-value="left">Kiri</button>
+                    <button type="button" class="ibtn" data-value="center">Tengah</button>
+                    <button type="button" class="ibtn" data-value="right">Kanan</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <span>Posisi vertikal</span>
+                  <div class="seg seg--text" id="media-ay">
+                    <button type="button" class="ibtn" data-value="top">Atas</button>
+                    <button type="button" class="ibtn" data-value="middle">Tengah</button>
+                  </div>
+                </div>
+              </div>
+              <div class="stat-box" id="media-info"></div>
+              <p class="hint">Dipakai bila printer mencetak ke kertas A4 lalu hasilnya bergeser
+                (mis. Epson L5190: turun ±43 mm). Disimpan per ukuran label.</p>
+
+              <div class="sub-title">Kalibrasi printer</div>
+              <p class="hint hint--top">Geser seluruh hasil cetak bila printer meleset. Positif = ke kanan / ke bawah.</p>
+              <div class="grid-form">
+                <label class="field">
+                  <span>Offset X (kanan +)</span>
+                  <div class="input-unit"><input type="number" step="0.1" id="cal-x" /><em>mm</em></div>
+                </label>
+                <label class="field">
+                  <span>Offset Y (bawah +)</span>
+                  <div class="input-unit"><input type="number" step="0.1" id="cal-y" /><em>mm</em></div>
+                </label>
+              </div>
+              <button type="button" id="btn-cal-reset" class="ghost">Nol-kan offset</button>
+
+              <div class="sub-title">Opsi cetak</div>
+              <div class="grid-form grid-form--tight">
+                <label class="field">
+                  <span>Mulai dari label ke-</span>
+                  <input type="number" id="opt-start" min="1" step="1" />
+                </label>
+                <label class="field">
+                  <span>Salinan per label</span>
+                  <input type="number" id="opt-copies" min="1" step="1" />
+                </label>
+                <label class="field">
+                  <span>Cetak lembar dari</span>
+                  <input type="number" id="opt-from" min="1" step="1" placeholder="1" />
+                </label>
+                <label class="field">
+                  <span>sampai lembar</span>
+                  <input type="number" id="opt-to" min="1" step="1" placeholder="terakhir" />
+                </label>
+              </div>
+              <p class="hint hint--top">Tip: <b>klik kotak label di preview lembar 1</b> untuk memilih posisi awal, berguna untuk lembar yang sebagian sudah terpakai.</p>
+              <label class="switch"><input type="checkbox" id="opt-border" /><span class="switch-ui"></span>Cetak garis tepi label (untuk tes)</label>
+              <div class="btn-row">
+                <button type="button" id="btn-pdf" class="primary"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/><path d="M6 9.5h5M6 12h3.5"/></svg>Export PDF</button>
+              </div>
+              <p class="hint">PDF memakai font standar (Helvetica/Times/Courier). Untuk font lain, gunakan <b>Cetak Label</b> → <i>Save as PDF</i>.</p>
+              <button type="button" id="btn-guide" class="link"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.2"/></svg>Petunjuk pengaturan printer</button>
+
+              <details class="more">
+                <summary>Backup, pulihkan &amp; reset</summary>
+                <p class="hint hint--top">Satu file berisi data, template, ukuran label, dan kalibrasi. Berguna untuk pindah komputer.</p>
+                <div class="btn-row">
+                  <button type="button" id="btn-backup" class="ghost">Download backup</button>
+                  <button type="button" id="btn-restore" class="ghost">Pulihkan dari file</button>
+                  <input type="file" id="file-restore" accept=".json,application/json" hidden />
+                </div>
+                <div class="btn-row">
+                  <button type="button" id="btn-reset-open" class="ghost danger">Reset data…</button>
+                </div>
+              </details>
+            </div>
+          </details>
+        </aside>
+
+        <main class="stage">
+          <div class="toolbar">
+            <div class="tabs">
+              <button type="button" class="tab tab--active" data-tab="preview">Preview</button>
+              <button type="button" class="tab" data-tab="data">Data <span id="data-count" class="badge"></span></button>
+            </div>
+            <div class="toolbar-group" id="preview-controls">
+              <select id="preview-mode" aria-label="Isi preview">
+                <option value="data">Label data</option>
+                <option value="test">Halaman tes</option>
+              </select>
+              <div class="pager">
+                <button type="button" id="pg-prev" class="icon-btn" aria-label="Lembar sebelumnya">‹</button>
+                <label class="pg-jump" title="Ketik nomor lembar lalu Enter">
+                  <span>Lembar</span>
+                  <input type="number" id="pg-input" min="1" step="1" value="1" aria-label="Nomor lembar" />
+                  <span id="pg-total">/ 1</span>
+                </label>
+                <button type="button" id="pg-next" class="icon-btn" aria-label="Lembar berikutnya">›</button>
+              </div>
+              <div class="pv-search" id="pv-search-wrap">
+                <label class="search"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input type="search" id="pv-search" placeholder="Cari teks di label…" aria-label="Cari teks di label" /></label>
+                <span id="pv-search-info" class="pv-search-info"></span>
+                <button type="button" id="pv-search-prev" class="icon-btn" title="Hasil sebelumnya (Shift+Enter)">‹</button>
+                <button type="button" id="pv-search-next" class="icon-btn" title="Hasil berikutnya (Enter)">›</button>
+              </div>
+              <button type="button" id="btn-print-page" class="ghost" title="Cetak hanya lembar yang sedang ditampilkan"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6V2.5h7V6"/><rect x="2" y="6" width="12" height="5" rx="1"/><path d="M4.5 9h7v4.5h-7z"/></svg><span id="btn-print-page-text">Cetak lembar ini</span></button>
+              <label class="zoom">
+                <span>Zoom</span>
+                <select id="zoom">
+                  <option value="fit">Pas layar</option>
+                  <option value="0.5">50%</option>
+                  <option value="0.75">75%</option>
+                  <option value="1">100%</option>
+                  <option value="1.5">150%</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="view" id="view-preview">
+            <div id="alerts"></div>
+            <div id="preview" class="preview-area"></div>
+          </div>
+
+          <div class="view" id="view-data" hidden>
+            <div class="data-toolbar">
+              <button type="button" id="btn-csv-2" class="primary"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.7 8 2.5l3.2 3.2M2.5 10v3.5h11V10"/></svg>Import CSV</button>
+              <button type="button" id="btn-undo" class="ghost" disabled title="Urungkan perubahan data terakhir (Ctrl+Z)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5 2.5 6 5 8.5"/><path d="M2.5 6h7a4 4 0 0 1 0 8H7"/></svg>Urungkan</button>
+              <button type="button" id="btn-row-add" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Tambah baris</button>
+              <button type="button" id="btn-col-add" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Tambah kolom</button>
+              <label class="search"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input type="search" id="data-search" placeholder="Cari nama, NIM, …" /></label>
+              <button type="button" id="btn-export-csv" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export CSV</button>
+              <button type="button" id="btn-export-xlsx" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export Excel</button>
+              <span class="hint" id="data-info"></span>
+            </div>
+            <div id="data-warn" class="data-warn"></div>
+            <div id="data-pred" class="data-pred" hidden></div>
+            <div class="table-wrap" id="data-table"></div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- Area khusus cetak: hanya ini yang terlihat saat window.print() -->
+    <div id="print-root"></div>
+
+    <dialog id="print-guide">
+      <form method="dialog">
+        <h2>Sebelum mencetak</h2>
+        <p>Pastikan pengaturan di dialog cetak browser seperti ini, agar posisi label tepat:</p>
+        <ol class="guide-list">
+          <li><b>Paper size / Ukuran kertas:</b> <mark id="guide-paper"></mark>
+            <span class="hint">Sesuai pilihan "Kertas di printer": <span id="guide-mode"></span>.</span>
+            <span class="hint" id="guide-custom-hint">Bila ukuran ini tidak ada di daftar, buat ukuran kertas custom di driver printer
+              (Windows: <i>Printer properties → Preferences → Paper size → User defined</i>).</span></li>
+          <li><b>Margins:</b> <mark>None</mark></li>
+          <li><b>Scale:</b> <mark>100</mark> / <i>Actual size</i>. Jangan <i>Fit to page</i>.</li>
+          <li><b>Headers and footers:</b> <mark>matikan</mark> (jangan dicentang).</li>
+          <li><b>Orientasi:</b> Portrait.</li>
+        </ol>
+        <p class="hint">Di Chrome/Edge, opsi di atas ada di bagian <i>More settings / Setelan lainnya</i>.
+          Lembar label (<span id="guide-label-size"></span>) dimasukkan ke printer seperti biasa.
+          Coba dulu di kertas HVS, tumpuk dengan lembar label, lalu terawang ke arah cahaya.</p>
+        <label class="check" id="guide-hide-row"><input type="checkbox" id="guide-hide" /> Jangan tampilkan lagi sebelum cetak</label>
+        <div class="btn-row btn-row--end">
+          <button value="cancel" id="guide-cancel">Batal</button>
+          <button value="ok" id="guide-continue" class="primary"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6V2.5h7V6"/><rect x="2" y="6" width="12" height="5" rx="1"/><path d="M4.5 9h7v4.5h-7z"/></svg>Lanjut Cetak</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="reset-dialog">
+      <form method="dialog">
+        <h2>Reset data</h2>
+        <p>Pilih yang ingin dikembalikan ke kondisi awal. Tindakan ini <b>tidak bisa dibatalkan</b>.</p>
+        <div class="reset-list">
+          <label class="reset-item"><input type="checkbox" data-reset="data" checked />
+            <span><b>Data</b><small id="reset-info-data">Tabel data hasil import</small></span></label>
+          <label class="reset-item"><input type="checkbox" data-reset="templates" />
+            <span><b>Template isi label</b><small id="reset-info-tpl">Kembali ke template bawaan</small></span></label>
+          <label class="reset-item"><input type="checkbox" data-reset="presets" />
+            <span><b>Ukuran label</b><small id="reset-info-presets">Hapus ukuran custom, kembalikan preset bawaan</small></span></label>
+          <label class="reset-item"><input type="checkbox" data-reset="photos" />
+            <span><b>Foto per orang</b><small id="reset-info-photos">Hapus semua foto yang tersimpan</small></span></label>
+          <label class="reset-item"><input type="checkbox" data-reset="settings" />
+            <span><b>Pengaturan printer &amp; cetak</b><small>Kalibrasi offset, kertas di printer, mulai dari label ke-, salinan, rentang lembar</small></span></label>
+          <label class="reset-item"><input type="checkbox" data-reset="sections" />
+            <span><b>Tampilan panel</b><small>Panel yang dibuka/dilipat</small></span></label>
+        </div>
+        <div class="reset-backup">
+          <span>Simpan cadangan dulu supaya bisa dikembalikan lewat <i>Pulihkan dari file</i>.</span>
+          <button type="button" id="reset-backup" class="ghost">Download backup</button>
+        </div>
+        <div class="btn-row btn-row--end">
+          <button type="button" id="reset-all" class="ghost">Pilih semua</button>
+          <button value="cancel">Batal</button>
+          <button value="ok" id="reset-confirm" class="primary primary--danger">Reset</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="paste-dialog">
+      <form method="dialog">
+        <h2>Paste dari Excel</h2>
+        <p>Blok sel di Excel <b>termasuk baris judul kolom</b>, tekan Ctrl+C, lalu tempel di sini dengan Ctrl+V.</p>
+        <textarea id="paste-text" rows="12" placeholder="nama&#9;alamat&#9;telepon&#9;jumlah"></textarea>
+        <div class="btn-row btn-row--end">
+          <button value="cancel">Batal</button>
+          <button value="ok" class="primary">Pakai data</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
