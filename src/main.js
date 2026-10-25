@@ -2582,6 +2582,15 @@ addEventListener('appinstalled', () => {
   toast(t('Cetak Label terpasang sebagai aplikasi.'));
 });
 
+// Tema warna: Deluxe (bawaan) ⇄ Ceria
+$('#btn-theme').addEventListener('click', () => {
+  const next = document.documentElement.dataset.theme === 'ceria' ? 'deluxe' : 'ceria';
+  document.documentElement.dataset.theme = next;
+  save('theme', next);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'ceria' ? '#5b21b6' : '#0b1222');
+  toast(t(next === 'ceria' ? 'Tema Ceria dipakai.' : 'Tema Deluxe dipakai.'));
+});
+
 // Bahasa antarmuka (Indonesia / English); isi label & data tidak ikut diterjemahkan
 initI18n();
 openSharedTemplate(); // aplikasi dibuka dari link berisi template

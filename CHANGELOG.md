@@ -69,6 +69,9 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Tema Deluxe**
+- Tema bawaan baru: header navy dengan garis emas & judul serif, tombol utama emas, latar gading, warna langkah bernada permata (zamrud, safir, perunggu, burgundi), pilihan objek & toolbar mini bernuansa emas. Tema lama tetap ada sebagai *Ceria* (tombol palet di header, tersimpan). Warna pilihan/toolbar mini kini lewat variabel CSS (`--sel`, `--lt-*`).
+
 **Google Sheets & berbagi template**
 - `src/share.js`: link Google Sheets (biasa / publikasi) → CSV export (CORS) dan diimport seperti CSV; link diingat. Pesan jelas bila sheet belum dibagikan atau dibuka dari file lokal.
 - *Bagikan link…*: template (tanpa data, gambar opsional) dikompresi deflate-raw + base64url di `#tpl=…`; saat dibuka → konfirmasi → divalidasi `normalizeTemplate` → ditambahkan; hash dibersihkan. Uji: sheet contoh publik 30 baris; link template 0,7 KB; link rusak ditolak.

@@ -305,6 +305,10 @@ Seperti toolbar Google Docs/Word: dua kelompok tombol tanpa bingkai.
 - **Kanan — tampilan:** isi preview (*Label data / Halaman tes*), ‹ nomor lembar ›, **cari** (Ctrl+F; Enter / ‹ › untuk hasil berikutnya/sebelumnya, Esc menutup), dan **Cetak lembar ini** (berwarna biru “Cetak lembar N” bila lembar ini berisi hasil pencarian).
 - Di layar kecil tombol menjadi ikon saja (keterangan muncul saat mouse diarahkan) dan kotak cari muncul **melayang** di bawah ikon 🔍, jadi toolbar tidak bergeser.
 
+## Tema warna
+
+Tombol **palet** di header mengganti tema: **Deluxe** (bawaan — navy tengah malam, emas sampanye, latar gading, judul serif) atau **Ceria** (gradasi ungu–merah muda, warna cerah per langkah). Pilihan tersimpan di browser; hasil cetak tidak terpengaruh.
+
 ## Bahasa / Language
 
 Tombol **ID | EN** di kanan atas mengganti bahasa antarmuka (Indonesia / English) tanpa memuat ulang; pilihan tersimpan di browser. Saat pertama dibuka, bahasa mengikuti browser (Indonesia bila browser berbahasa Indonesia, selain itu English).
