@@ -136,8 +136,9 @@ export const EN = {
   'Sertakan foto per orang': 'Include per-person photos',
   'foto': 'photos',
   'Pasang': 'Install',
-  'Pasang Cetak Label sebagai aplikasi (bisa dibuka tanpa internet)': 'Install Cetak Label as an app (works without internet)',
-  'Cetak Label terpasang sebagai aplikasi.': 'Cetak Label is installed as an app.',
+  'Pasang ZaviLabels sebagai aplikasi (bisa dibuka tanpa internet)': 'Install ZaviLabels as an app (works without internet)',
+  'ZaviLabels terpasang sebagai aplikasi.': 'ZaviLabels is installed as an app.',
+  'Link bukan template ZaviLabels.': 'This link is not a ZaviLabels template.',
   'Posisi di label (rata kiri/tengah/kanan, atas/tengah/bawah)': 'Position on the label (left/center/right, top/middle/bottom)',
   'Rata kiri label': 'Align to left edge',
   'Tengah horizontal': 'Center horizontally',
@@ -544,7 +545,7 @@ export const EN = {
   'Download backup': 'Download backup',
   'Pulihkan dari file': 'Restore from file',
   'Reset data…': 'Reset data…',
-  'Bukan file backup Cetak Label.': 'Not a Print Labels backup file.',
+  'Bukan file backup ZaviLabels.': 'Not a ZaviLabels backup file.',
   'Semua data, template, ukuran, dan pengaturan sekarang akan diganti dengan isi backup. Lanjutkan?': 'All current data, templates, sizes and settings will be replaced by the backup. Continue?',
 
   /* ---------- Preview ---------- */

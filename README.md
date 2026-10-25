@@ -1,4 +1,6 @@
-# Cetak Label
+# ZaviLabels
+
+*(sebelumnya: Cetak Label)*
 
 Aplikasi web untuk mencetak **label stiker** (Tom & Jerry, Koala, Fox, ABC, label A4, dan sejenisnya) dengan posisi presisi dalam milimeter. Berjalan **offline** di browser: tanpa server, tanpa login, tanpa internet setelah dibuild.
 

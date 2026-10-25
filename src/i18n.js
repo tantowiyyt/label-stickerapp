@@ -131,7 +131,7 @@ function observe() {
 
 function apply() {
   document.documentElement.lang = lang;
-  document.title = 'Cetak Label'; // nama aplikasi (merek) tidak diterjemahkan
+  document.title = 'ZaviLabels'; // nama aplikasi (merek) tidak diterjemahkan
   for (const b of document.querySelectorAll('[data-lang]')) b.classList.toggle('active', b.dataset.lang === lang);
   if (lang === 'en') {
     walk(document.body);

@@ -45,7 +45,7 @@ export async function templateFromHash() {
   const bytes = await pipe(packed, new DecompressionStream('deflate-raw'));
   if (bytes.length > MAX_DECODED) throw new Error('Isi link terlalu besar.');
   const data = JSON.parse(new TextDecoder().decode(bytes));
-  if (data?.app !== 'cetak-label' || !data.template) throw new Error('Link bukan template Cetak Label.');
+  if (data?.app !== 'cetak-label' || !data.template) throw new Error('Link bukan template ZaviLabels.');
   return data.template;
 }
 

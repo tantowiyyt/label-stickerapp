@@ -1,6 +1,6 @@
 # Catatan Progres
 
-Riwayat pengembangan aplikasi **Cetak Label**. Tanggal memakai format YYYY-MM-DD.
+Riwayat pengembangan aplikasi **ZaviLabels** (sebelumnya Cetak Label). Tanggal memakai format YYYY-MM-DD.
 
 ## Status saat ini (2026-10-16)
 
@@ -68,6 +68,9 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 **Barcode/QR posisi bebas**
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
+
+**Nama aplikasi: ZaviLabels**
+- Judul, header, nama aplikasi terpasang (manifest), metadata PDF, nama file backup, dan pesan terkait memakai nama ZaviLabels. Tombol aksi *Cetak Label* tetap. Penanda internal (`cetak-label`, kunci `cetakLabel.*`, nama database) sengaja tidak diubah agar data, backup, dan link template lama tetap terbaca.
 
 **Tren frontend 2026**
 - Efek kaca (backdrop-filter) untuk toolbar mini, menu, kotak cari melayang, toast; kilau tipis di header tema premium.

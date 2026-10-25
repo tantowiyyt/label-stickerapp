@@ -2345,7 +2345,7 @@ async function downloadBackup() {
   const file = { app: 'cetak-label', backup: 1, data };
   if ($('#backup-photos').checked && photoCount()) file.photos = await exportPhotos(); // { kunci: data URL }
   const date = new Date().toISOString().slice(0, 10);
-  downloadText(`backup-cetak-label-${date}.json`, JSON.stringify(file, null, file.photos ? 0 : 2), 'application/json');
+  downloadText(`backup-zavilabels-${date}.json`, JSON.stringify(file, null, file.photos ? 0 : 2), 'application/json');
   save('backupInfo', { ...load('backupInfo', {}), last: Date.now() });
   renderBackupReminder();
 }
@@ -2449,7 +2449,7 @@ $('#file-restore').addEventListener('change', async (e) => {
   if (!file) return;
   try {
     const json = JSON.parse(await file.text());
-    if (json?.app !== 'cetak-label' || !json.data) throw new Error('Bukan file backup Cetak Label.');
+    if (json?.app !== 'cetak-label' || !json.data) throw new Error('Bukan file backup ZaviLabels.');
     if (!confirm(t('Semua data, template, ukuran, dan pengaturan sekarang akan diganti dengan isi backup. Lanjutkan?'))) return;
     for (const [key, value] of Object.entries(json.data)) setRaw(key, value);
     await flush();
@@ -2599,7 +2599,7 @@ $('#btn-install').addEventListener('click', async () => {
 });
 addEventListener('appinstalled', () => {
   $('#btn-install').hidden = true;
-  toast(t('Cetak Label terpasang sebagai aplikasi.'));
+  toast(t('ZaviLabels terpasang sebagai aplikasi.'));
 });
 
 // Tema warna (tombol palet → menu): Deluxe (bawaan), Zamrud, Onyx, Rosé, Ceria

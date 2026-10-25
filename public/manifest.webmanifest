@@ -1,6 +1,6 @@
 {
-  "name": "Cetak Label",
-  "short_name": "Cetak Label",
+  "name": "ZaviLabels",
+  "short_name": "ZaviLabels",
   "description": "Cetak label stiker (T&J dan sejenisnya), kartu ujian, label alamat — offline.",
   "lang": "id",
   "start_url": "./",

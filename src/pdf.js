@@ -303,7 +303,7 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
   const orientation = page.pageW > page.pageH ? 'landscape' : 'portrait';
   const format = [page.pageW, page.pageH];
   const doc = new jsPDF({ unit: 'mm', format, orientation, compress: true });
-  doc.setProperties({ title: filename.replace(/\.pdf$/, ''), creator: 'Cetak Label' });
+  doc.setProperties({ title: filename.replace(/\.pdf$/, ''), creator: 'ZaviLabels' });
   // font asli komputer (bila diizinkan): font global, per baris, dan teks bebas
   const families = [...new Set([tpl.font, ...tpl.lines.map((l) => l.font), ...(tpl.texts ?? []).map((t) => t.font)].filter(Boolean))];
   const fontInfo = embedFonts ? await embedLocalFonts(doc, families) : { map: new Map(), embedded: 0 };
