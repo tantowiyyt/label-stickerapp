@@ -320,6 +320,13 @@ function loadImageFile(file) {
   });
 }
 
+/** Tambah template baru (mis. dari galeri) lalu langsung pakai. */
+export function addTemplate(tpl) {
+  templates.push(tpl);
+  saveTemplates(templates);
+  selectTemplate(tpl.id);
+}
+
 /* ---------- Tata letak per ukuran label ---------- */
 
 /**

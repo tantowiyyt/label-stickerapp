@@ -8,7 +8,8 @@ import { checkFit, labelsPerSheet, gridWidth, gridHeight, paginate, MM_TO_PX } f
 import { buildTestSheet, buildDataSheets, placeLabel } from './sheet.js';
 import { exportPdf } from './pdf.js';
 import { MEDIA_MODES, DEFAULT_MEDIA, normalizeMedia, pageLayout, pageSizeName } from './media.js';
-import { loadTable, saveTable, expandRows, addRow, addColumn } from './data.js';
+import { loadTable, saveTable, expandRows, addRow, addColumn, makeRow } from './data.js';
+import { renderGallery, galleryTemplate, galleryData } from './gallery.js';
 import {
   parseTable, parseWorkbook, isExcelFile, readTextFile, downloadSampleCsv, downloadSampleXlsx, exportTableCsv, exportTableXlsx,
 } from './importer.js';
@@ -20,7 +21,7 @@ import {
   selectLine, getSelectedLine, updateLineOffset, updateCode, updateLineStyle, syncTemplateLayout,
   selectFree, getSelectedFree, getFreeText, updateFreeText, removeFreeText, addFreeText,
   undoTemplate, redoTemplate, historyState,
-  getDecal, removeDecal, duplicateDecal, duplicateFreeText,
+  getDecal, removeDecal, duplicateDecal, duplicateFreeText, addTemplate,
   useCodeColumn,
 } from './templateEditor.js';
 import { loadPhotos, clearPhotos, photoCount, photoUrl, exportPhotos, importPhotos } from './photos.js';
@@ -1336,6 +1337,23 @@ document.addEventListener('click', (e) => {
   if (!textMenu.hidden && !e.target.closest('#tb-text')) toggleTextMenu(false);
 });
 
+/* ---------------- Galeri template ---------------- */
+
+$('#tpl-gallery').addEventListener('click', () => {
+  renderGallery($('#gallery-grid'), currentPreset(), (def, withData) => {
+    if (withData) {
+      if (state.table.rows.length && !confirm(t('Data yang ada sekarang akan diganti. Lanjutkan?'))) return;
+      const { columns, rows } = galleryData(def);
+      setTable({ columns: [...columns], rows: rows.map((cells) => makeRow(columns, cells)) }, t('Data contoh dimuat.'), 'data contoh galeri');
+    }
+    addTemplate(galleryTemplate(def));
+    $('#gallery-dialog').close();
+    showTab('preview');
+    toast(t('Template dari galeri dipakai. Semua bagian bisa diubah di panel Isi Label.'));
+  });
+  $('#gallery-dialog').showModal();
+});
+
 /* ---------------- Atur objek: rata di label, hapus, duplikat (toolbar mini & keyboard) ---------------- */
 
 /** Elemen objek terpilih di label yang terakhir diklik (atau label pertama). */
@@ -1841,11 +1859,16 @@ async function savePdf() {
   const name = shortName(p.nama).replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'label';
   const suffix = data.range.all ? '' : `-lembar-${data.range.from}-${data.range.to}`;
   try {
-    await exportPdf({
+    const result = await exportPdf({
       preset: p, cal, page, tpl: currentTemplate(), pages: data.pages, renderer: data.renderer,
       border: !!state.settings.printBorder, filename: `label-${name}${suffix}.pdf`,
+      embedFonts: state.settings.pdfFonts !== false,
     });
-    toast(`PDF dibuat: ${data.pages.length} halaman.`);
+    if (state.settings.pdfFonts !== false && !result.fonts) {
+      toast(t(result.fontReason === 'unsupported'
+        ? 'PDF dibuat dengan font standar: browser ini tidak bisa membaca font komputer (pakai Chrome/Edge).'
+        : 'PDF dibuat dengan font standar: izin akses font tidak diberikan atau fontnya tidak didukung.'));
+    } else toast(`PDF dibuat: ${data.pages.length} halaman.`);
   } catch (err) {
     console.error(err);
     toast(`Gagal membuat PDF: ${err.message}`, 'error');
@@ -1862,6 +1885,11 @@ $('#btn-guide').addEventListener('click', async () => {
   persistSettings();
 });
 
+$('#opt-pdf-fonts').addEventListener('change', (e) => {
+  state.settings.pdfFonts = e.target.checked;
+  persistSettings();
+});
+
 $('#opt-border').addEventListener('change', (e) => {
   state.settings.printBorder = e.target.checked;
   persistSettings();
@@ -1872,6 +1900,7 @@ $('#opt-border').addEventListener('change', (e) => {
 
 function renderPrintOptions() {
   renderGroupOptions();
+  $('#opt-pdf-fonts').checked = state.settings.pdfFonts !== false;
   const p = currentPreset();
   $('#opt-start').value = startSlot(p) + 1;
   $('#opt-start').max = labelsPerSheet(p);

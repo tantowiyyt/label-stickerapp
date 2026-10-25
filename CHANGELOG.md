@@ -69,6 +69,13 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Galeri template**
+- `src/gallery.js`: 7 desain siap pakai (kartu ujian + QR, undangan, alamat pengiriman, label harga + barcode, name tag, arsip, inventaris + QR) dengan pratinjau memakai renderer cetak & ukuran label aktif; *Pakai template* / *+ data contoh*; isi ID/EN.
+
+**Font asli di PDF**
+- `src/pdfFonts.js`: Local Font Access API → font TrueType yang dipakai label (global, per baris, teks bebas; 4 gaya) disematkan ke PDF via jsPDF; .otf/.ttc dilewati. Opsi *Pakai font asli komputer di PDF*; notifikasi bila jatuh ke font standar.
+- Uji: file Arial & Times New Roman asli Windows tersemat (PDF 83–119 KB karena subset), dirender benar; Cambria (.ttc) jatuh ke Times standar. Chrome headless tidak membuka akses font, jadi uji memakai pengganti `queryLocalFonts` berisi file font asli.
+
 **PWA (install & offline)**
 - `public/manifest.webmanifest`, `public/sw.js` (halaman network-first, aset cache-first), ikon 192/512; didaftarkan di `boot.js` hanya untuk build lewat http(s). Tombol **Pasang** di header (beforeinstallprompt). Uji: SW aktif, muat ulang dalam kondisi offline tetap membuka aplikasi beserta datanya.
 
@@ -144,7 +151,7 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 ## Keterbatasan yang diketahui
 
 - Foto per orang ikut file backup hanya bila *Sertakan foto per orang* dicentang.
-- PDF hanya memakai font standar (Helvetica/Times/Courier); font lain → *Cetak Label → Save as PDF*.
+- Font asli di PDF butuh Chrome/Edge desktop + izin akses font, dan hanya font TrueType (.ttf); selain itu PDF memakai Helvetica/Times/Courier.
 - Penyimpanan browser terikat pada lokasi file `dist/index.html`; pindah folder = data tidak terbawa (pakai Backup).
 - Jumlah label per lembar untuk preset bertanda "perkiraan" belum dicek dengan kemasan asli.
 - `dist/` tidak ikut di repository; perlu `npm install` + `npm run build` (SheetJS diunduh dari `cdn.sheetjs.com`).

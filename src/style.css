@@ -776,6 +776,28 @@ dialog h2 { color: #5b21b6; }
 .sb-sep { width: 1px; height: 20px; background: var(--line); }
 .code-switches { display: flex; flex-direction: column; gap: 6px; }
 
+/* Galeri template */
+dialog.gallery-dialog { width: min(1080px, calc(100vw - 32px)); max-width: none; }
+.gallery-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px;
+  max-height: min(64vh, 640px); overflow: auto; padding: 4px 2px 8px; margin: 10px 0 14px;
+}
+.gal-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.gal-card:hover { border-color: #c4b5fd; box-shadow: 0 6px 20px rgba(91, 33, 182, .12); }
+.gal-preview {
+  display: grid; place-items: center; height: 156px;
+  background: radial-gradient(#d3d8e2 1px, transparent 1px) 0 0 / 12px 12px, #eef0f6; border-bottom: 1px solid var(--line);
+}
+.gal-stage { position: relative; background: #fff; box-shadow: 0 1px 3px rgba(16, 24, 40, .18); }
+.gal-label { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #fff; }
+.gal-body { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 12px; flex: 1; }
+.gal-body h3 { margin: 0; font-size: 14px; }
+.gal-body p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.gal-cols { display: flex; flex-wrap: wrap; gap: 4px; }
+.gal-cols code { font-size: 11px; padding: 1px 5px; border-radius: 5px; background: var(--surface-2); color: var(--muted); }
+.gal-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
+.gal-actions button { height: 32px; flex: 1; padding: 0 8px; font-size: 13px; }
+
 /* Pengingat backup (di atas preview) */
 .backup-reminder {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

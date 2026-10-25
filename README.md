@@ -109,6 +109,8 @@ No. Kursi: **{{no_kursi}}**
 
 Klik nama kolom (chip) di panel untuk menyisipkan placeholder. Placeholder yang kolomnya tidak ada di data ditandai dengan peringatan.
 
+**Galeri template** (tombol ▦ di sebelah pilihan template): desain siap pakai — kartu ujian + QR, label undangan (*Kepada Yth.*), alamat pengiriman, label harga + barcode, name tag acara (strip warna per peran), label arsip/map, dan label inventaris + QR. Pratinjau memakai ukuran label yang sedang dipilih. **Pakai template** menambah template baru; **+ data contoh** sekaligus mengisi tabel data dengan contoh. Isi template mengikuti bahasa antarmuka (ID/EN).
+
 **Pengaturan**
 
 - **Gaya cepat**: *Judul tebal*, *Semua tebal*, *Normal*.
@@ -225,7 +227,7 @@ Di Chrome/Edge, opsi ini ada di *More settings*. Hanya halaman label yang tercet
 - **Lompat ke lembar**: ketik nomor di kotak *Lembar … / N* lalu Enter.
 - **Cari teks di label**: membuka lembar berisi hasil pencarian dan menandai labelnya (tanda hanya di layar). Enter / › = berikutnya, Shift+Enter / ‹ = sebelumnya.
 - **Cetak lembar ini**: cetak hanya lembar yang sedang ditampilkan; setelah pencarian berhasil, tombol menjadi *Cetak lembar N*.
-- **Export PDF**: PDF vektor dengan pengaturan yang sama (posisi, rotasi, gambar, barcode/QR, kertas printer). PDF memakai font standar Helvetica/Times/Courier; untuk font lain gunakan *Cetak Label → Save as PDF*.
+- **Export PDF**: PDF vektor dengan pengaturan yang sama (posisi, rotasi, gambar, barcode/QR, kertas printer). Dengan **Pakai font asli komputer di PDF** (aktif bawaan), font yang sama dengan layar (mis. Arial, Times New Roman, Calibri) disematkan ke PDF; Chrome/Edge meminta izin akses font sekali. Hanya font TrueType (.ttf) yang bisa disematkan; font .otf/.ttc, browser lain, atau bila izin ditolak → PDF memakai Helvetica/Times/Courier (ada pemberitahuan). Alternatif: *Cetak Label → Save as PDF*.
 
 ## Kalibrasi printer
 

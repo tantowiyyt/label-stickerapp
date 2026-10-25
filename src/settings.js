@@ -12,6 +12,7 @@ const DEFAULTS = {
   groupBy: '', // cetak per kelompok: nama kolom (mis. kelas/ruang), '' = tidak dikelompokkan
   groupNewSheet: true, // tiap kelompok mulai di lembar baru
   groupOnly: '', // hanya cetak kelompok ini ('' = semua)
+  pdfFonts: true, // sematkan font asli komputer ke PDF (lihat pdfFonts.js)
   copies: 1,
   rangeFrom: null,
   rangeTo: null,

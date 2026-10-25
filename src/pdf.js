@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { embedLocalFonts } from './pdfFonts.js';
 import { slotPosition } from './layout.js';
 import { PT_TO_MM, LINE_HEIGHT } from './fit.js';
 import { FONT_GROUPS } from './fonts.js';
@@ -19,6 +20,17 @@ const MONO = fontsOf('Monospace');
 
 const pdfFamily = (name) => (SERIF.has(name) ? 'times' : MONO.has(name) ? 'courier' : 'helvetica');
 const pdfStyle = (bold, italic) => (bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal');
+
+// Font yang disematkan untuk PDF yang sedang dibuat ("Arial|bold" → [namaPdf, gaya]); lihat pdfFonts.js.
+let embeddedFonts = new Map();
+
+/** Pasang font untuk teks: font asli yang disematkan bila ada, selain itu Helvetica/Times/Courier. */
+function useFont(doc, name, bold, italic) {
+  const style = pdfStyle(bold, italic);
+  const hit = embeddedFonts.get(`${name}|${style}`);
+  if (hit) doc.setFont(hit[0], hit[1]);
+  else doc.setFont(pdfFamily(name), style);
+}
 
 // Posisi garis dasar (baseline) dari atas kotak baris, dalam em, untuk line-height 1,15.
 const BASELINE_EM = 0.92;
@@ -47,7 +59,7 @@ function mapper(tpl, p, X, Y) {
 
 function unitWidth(doc, family, segs) {
   return segs.reduce((w, s) => {
-    doc.setFont(family, pdfStyle(s.bold, s.italic));
+    useFont(doc, family, s.bold, s.italic);
     return w + doc.getStringUnitWidth(s.text);
   }, 0);
 }
@@ -56,10 +68,10 @@ function unitWidth(doc, family, segs) {
 function truncateSegs(doc, family, segs, maxUnits) {
   const out = [];
   let used = 0;
-  doc.setFont(family, 'normal');
+  useFont(doc, family, false, false);
   const dots = doc.getStringUnitWidth('…');
   for (const s of segs) {
-    doc.setFont(family, pdfStyle(s.bold, s.italic));
+    useFont(doc, family, s.bold, s.italic);
     const w = doc.getStringUnitWidth(s.text);
     if (used + w <= maxUnits - dots) {
       out.push(s);
@@ -76,7 +88,7 @@ function truncateSegs(doc, family, segs, maxUnits) {
 
 function drawText(doc, lines, box, tpl, map) {
   const prepared = lines.map((l) => {
-    const family = pdfFamily(l.font);
+    const family = l.font; // nama font layar; useFont memilih font PDF-nya
     const segs = l.segments.filter((s) => s.text);
     const unitW = unitWidth(doc, family, segs);
     let size = l.size;
@@ -84,7 +96,7 @@ function drawText(doc, lines, box, tpl, map) {
     if (l.wrap) {
       const bold = segs.length > 0 && segs.every((s) => s.bold);
       const italic = segs.length > 0 && segs.every((s) => s.italic);
-      doc.setFont(family, pdfStyle(bold, italic));
+      useFont(doc, family, bold, italic);
       doc.setFontSize(size);
       rows = doc.splitTextToSize(segs.map((s) => s.text).join(''), box.w).map((text) => [{ text, bold, italic }]);
     } else if (l.ellipsis || (l.overflow === 'ellipsis' && unitW * size * PT_TO_MM > box.w)) {
@@ -110,7 +122,7 @@ function drawText(doc, lines, box, tpl, map) {
       let u = box.u + line.dx + (line.align === 'left' ? 0 : line.align === 'right' ? box.w - w : (box.w - w) / 2);
       const baseline = v + line.dy + em * BASELINE_EM;
       for (const s of segs) {
-        doc.setFont(family, pdfStyle(s.bold, s.italic));
+        useFont(doc, family, s.bold, s.italic);
         const [x, y] = map.pt(u, baseline);
         doc.text(s.text, x, y, { angle: map.angle });
         u += doc.getStringUnitWidth(s.text) * em;
@@ -123,9 +135,8 @@ function drawText(doc, lines, box, tpl, map) {
 /** Teks bebas: x/y = pojok kiri-atas kotak teks; baris-baris diratakan di dalam kotaknya. */
 function drawFreeTexts(doc, texts, map) {
   for (const t of texts) {
-    const family = pdfFamily(t.font);
     const em = t.size * PT_TO_MM;
-    doc.setFont(family, pdfStyle(t.bold, t.italic));
+    useFont(doc, t.font, t.bold, t.italic);
     doc.setFontSize(t.size);
     doc.setTextColor(t.color);
     const rows = t.value.split('\n');
@@ -187,12 +198,16 @@ const imageFormat = (src) => (/^data:image\/jpe?g/i.test(src) ? 'JPEG' : 'PNG');
 /**
  * page: dari media.js pageLayout(); pages: hasil paginate() → Array<Array<{ slot, item }>>; renderer: createLabelRenderer().
  */
-export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, border, filename }) {
+export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, border, filename, embedFonts = false }) {
   // ukuran halaman = kertas di printer (bisa A4); cal sudah termasuk posisi lembar label di atasnya
   const orientation = page.pageW > page.pageH ? 'landscape' : 'portrait';
   const format = [page.pageW, page.pageH];
   const doc = new jsPDF({ unit: 'mm', format, orientation, compress: true });
   doc.setProperties({ title: filename.replace(/\.pdf$/, ''), creator: 'Cetak Label' });
+  // font asli komputer (bila diizinkan): font global, per baris, dan teks bebas
+  const families = [...new Set([tpl.font, ...tpl.lines.map((l) => l.font), ...(tpl.texts ?? []).map((t) => t.font)].filter(Boolean))];
+  const fontInfo = embedFonts ? await embedLocalFonts(doc, families) : { map: new Map(), embedded: 0 };
+  embeddedFonts = fontInfo.map;
   const geo = renderer.geometry;
   const photoCache = new Map(); // satu foto dipakai berulang (jumlah/salinan) cukup diproses sekali
   const decals = await Promise.all((tpl.decals ?? []).map(async (d) => ({ ...d, data: await rotateImage(d.src, tpl.orientation) })));
@@ -240,4 +255,6 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
     }
   }
   doc.save(filename);
+  embeddedFonts = new Map();
+  return { fonts: fontInfo.embedded, fontReason: fontInfo.reason };
 }
