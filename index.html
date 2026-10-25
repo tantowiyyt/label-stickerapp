@@ -46,6 +46,7 @@
               <div class="btn-row btn-row--grid">
                 <button type="button" id="btn-csv" class="primary"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.7 8 2.5l3.2 3.2M2.5 10v3.5h11V10"/></svg>Import CSV / Excel</button>
                 <button type="button" id="btn-paste"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3" width="9" height="11" rx="1.5"/><path d="M6 3V2h4v1M6 7h4M6 10h3"/></svg>Paste dari Excel</button>
+                <button type="button" id="btn-gsheet" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="1.5" width="10" height="13" rx="1.5"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h5M8 6v5"/></svg>Google Sheets</button>
                 <input type="file" id="file-csv" accept=".csv,.txt,.xlsx,.xls,.xlsm,.ods,text/csv" hidden />
               </div>
               <div class="stat-box" id="data-summary"></div>
@@ -251,6 +252,7 @@
                 <div class="btn-row">
                   <button type="button" id="tpl-export" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export JSON</button>
                   <button type="button" id="tpl-import" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.5V2.5M4.8 5.7 8 2.5l3.2 3.2M2.5 10v3.5h11V10"/></svg>Import JSON</button>
+                  <button type="button" id="tpl-share" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.8-.8"/></svg>Bagikan link…</button>
                   <input type="file" id="tpl-file" accept=".json,application/json" hidden />
                 </div>
               </details>
@@ -652,6 +654,37 @@
         <div id="gallery-grid" class="gallery-grid"></div>
         <div class="btn-row btn-row--end">
           <button value="cancel">Tutup</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="gs-dialog">
+      <form method="dialog">
+        <h2>Ambil data dari Google Sheets</h2>
+        <ol>
+          <li>Di Google Sheets: <b>Bagikan</b> → <b>Siapa saja yang memiliki link</b> (Viewer).</li>
+          <li>Salin link spreadsheet (buka sheet/tab yang diinginkan dulu), lalu tempel di sini.</li>
+        </ol>
+        <input type="text" id="gs-url" placeholder="https://docs.google.com/spreadsheets/d/…" spellcheck="false" />
+        <p class="hint">Baris pertama = nama kolom. Link diingat, jadi saat isi sheet berubah cukup buka dialog ini lagi lalu <b>Ambil data</b>.</p>
+        <p class="alert alert--error" id="gs-error" hidden></p>
+        <div class="btn-row btn-row--end">
+          <button value="cancel">Batal</button>
+          <button type="button" id="gs-go" class="primary">Ambil data</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="share-dialog">
+      <form method="dialog">
+        <h2>Bagikan template lewat link</h2>
+        <p>Siapa pun yang membuka link ini bisa menambahkan template <b id="share-name"></b> ke aplikasinya. Yang dibagikan hanya <b>desain</b>, bukan data peserta.</p>
+        <textarea id="share-link" rows="4" readonly spellcheck="false"></textarea>
+        <label class="switch" id="share-images-row"><input type="checkbox" id="share-images" /><span class="switch-ui"></span>Sertakan gambar bebas (link jadi jauh lebih panjang)</label>
+        <p class="hint" id="share-note"></p>
+        <div class="btn-row btn-row--end">
+          <button value="cancel">Tutup</button>
+          <button type="button" id="share-copy" class="primary">Salin link</button>
         </div>
       </form>
     </dialog>

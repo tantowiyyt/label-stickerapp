@@ -259,6 +259,12 @@ Menu **Bentuk ▾** di toolbar atas (atau tombol di panel *Isi Label → Bentuk 
 - Klik bentuk untuk toolbar mini: warna & tebal garis, putus-putus, warna isi / tanpa isi, sudut bulat, posisi (rata), depan/belakang teks, duplikat (Ctrl+D), hapus (Delete).
 - Ikut tercetak dan masuk PDF sebagai vektor; posisinya disimpan per ukuran label.
 
+## Google Sheets & berbagi template
+
+**Ambil data dari Google Sheets** (tombol *Google Sheets* di panel Data): bagikan spreadsheet sebagai *Siapa saja yang memiliki link* (Viewer), lalu tempel linknya (tab yang terbuka di link ikut dipakai; link *Publikasikan ke web* juga bisa). Link diingat — saat isi sheet berubah, buka dialognya lagi lalu *Ambil data*. Hanya berfungsi di versi web (http/https); dari file lokal gunakan *File → Download → CSV* di Google Sheets lalu Import CSV.
+
+**Bagikan template lewat link** (*Isi Label → Export / import template → Bagikan link…*): desain template dikemas ke dalam link (`#tpl=…`, dikompresi). Penerima yang membuka link mendapat konfirmasi lalu template ditambahkan. Data peserta **tidak** ikut; gambar bebas hanya bila dicentang (link jadi panjang). Link berfungsi bila aplikasi dibuka dari web (mis. VPS); dari file lokal hanya berlaku di komputer itu — pakai *Export JSON* sebagai alternatif.
+
 ## Putar objek
 
 Teks bebas, gambar, dan bentuk bisa diputar ke sudut berapa pun:

@@ -795,6 +795,10 @@ dialog h2 { color: #5b21b6; }
 .sb-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: nowrap; }
 .sb-sep { width: 1px; height: 20px; background: var(--line); }
 .code-switches { display: flex; flex-direction: column; gap: 6px; }
+#gs-url { width: 100%; margin: 4px 0 8px; }
+#gs-error[hidden] { display: none; }
+#share-link { width: 100%; font: 12px/1.4 ui-monospace, Consolas, monospace; word-break: break-all; resize: vertical; margin: 6px 0 8px; }
+#share-images-row[hidden] { display: none; }
 .tpl-text-head { display: flex; align-items: center; justify-content: space-between; }
 .tpl-mark { display: inline-flex; gap: 4px; }
 .tpl-mark .tbtn { min-width: 28px; height: 26px; padding: 0 6px; }

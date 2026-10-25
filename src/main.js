@@ -10,6 +10,7 @@ import { exportPdf } from './pdf.js';
 import { MEDIA_MODES, DEFAULT_MEDIA, normalizeMedia, pageLayout, pageSizeName } from './media.js';
 import { loadTable, saveTable, expandRows, addRow, addColumn, makeRow } from './data.js';
 import { renderGallery, galleryTemplate, galleryData } from './gallery.js';
+import { templateLink, templateFromHash, clearShareHash, canShareLink, fetchSheetCsv, sheetCsvUrl } from './share.js';
 import {
   parseTable, parseWorkbook, isExcelFile, readTextFile, downloadSampleCsv, downloadSampleXlsx, exportTableCsv, exportTableXlsx,
 } from './importer.js';
@@ -27,7 +28,7 @@ import {
 } from './templateEditor.js';
 import { loadPhotos, clearPhotos, photoCount, photoUrl, exportPhotos, importPhotos } from './photos.js';
 import { mountGenerator, openGenerator } from './generator.js';
-import { usedColumns, normColumn, quickTexts, decalHeight, normRot } from './template.js';
+import { usedColumns, normColumn, quickTexts, decalHeight, normRot, normalizeTemplate, newTemplateId } from './template.js';
 import { initI18n, setLang, t, lang, unit } from './i18n.js';
 import { load, save, remove, rawEntries, setRaw, flush } from './storage.js';
 import { printSheets, showPrintGuide } from './print.js';
@@ -1367,6 +1368,96 @@ document.addEventListener('click', (e) => {
   if (!textMenu.hidden && !e.target.closest('#tb-text')) toggleTextMenu(false);
 });
 
+/* ---------------- Import dari Google Sheets ---------------- */
+
+$('#btn-gsheet').addEventListener('click', () => {
+  $('#gs-url').value = state.settings.gsheetUrl || '';
+  $('#gs-error').hidden = true;
+  $('#gs-dialog').showModal();
+  $('#gs-url').focus();
+});
+$('#gs-go').addEventListener('click', async () => {
+  const link = $('#gs-url').value.trim();
+  const showError = (msg) => {
+    $('#gs-error').textContent = t(msg);
+    $('#gs-error').hidden = false;
+  };
+  if (!sheetCsvUrl(link)) return showError('Bukan link Google Sheets.');
+  const btn = $('#gs-go');
+  btn.disabled = true;
+  try {
+    const text = await fetchSheetCsv(link);
+    state.settings.gsheetUrl = link;
+    persistSettings();
+    $('#gs-dialog').close();
+    importText(text, 'Google Sheets');
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------------- Bagikan template lewat link ---------------- */
+
+async function renderShareLink() {
+  const tpl = currentTemplate();
+  const link = await templateLink(tpl, { images: $('#share-images').checked });
+  $('#share-link').value = link;
+  const kb = (link.length / 1024).toFixed(1);
+  const local = location.protocol === 'file:';
+  $('#share-note').textContent = [
+    t(`Panjang link: ${kb} KB.`),
+    link.length > 8000 ? t('Link panjang mungkin terpotong di aplikasi chat; kirim lewat email/dokumen, atau pakai Export JSON.') : '',
+    local ? t('Aplikasi sedang dibuka dari file lokal: link ini hanya berfungsi di komputer ini. Untuk dibagikan, buka versi web (mis. di VPS) lalu bagikan dari sana.') : '',
+  ].filter(Boolean).join(' ');
+}
+$('#tpl-share').addEventListener('click', async () => {
+  if (!canShareLink()) return toast(t('Browser ini belum mendukung berbagi lewat link. Pakai Export JSON.'), 'error');
+  const tpl = currentTemplate();
+  $('#share-name').textContent = tpl.nama;
+  $('#share-images').checked = false;
+  $('#share-images-row').hidden = !tpl.decals.length;
+  await renderShareLink();
+  $('#share-dialog').showModal();
+  $('#share-link').select();
+});
+$('#share-images').addEventListener('change', renderShareLink);
+$('#share-copy').addEventListener('click', async () => {
+  const link = $('#share-link').value;
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch {
+    $('#share-link').select();
+    document.execCommand('copy');
+  }
+  toast(t('Link template disalin.'));
+});
+
+/** Buka template dari link (#tpl=…): tanyakan dulu, lalu tambahkan sebagai template baru. */
+async function openSharedTemplate() {
+  let raw;
+  try {
+    raw = await templateFromHash();
+  } catch (err) {
+    clearShareHash();
+    return toast(t('Link template rusak atau tidak lengkap.'), 'error');
+  }
+  if (!raw) return;
+  clearShareHash();
+  let tpl;
+  try {
+    tpl = normalizeTemplate({ ...raw, id: newTemplateId() });
+  } catch {
+    return toast(t('Link template rusak atau tidak lengkap.'), 'error');
+  }
+  if (!confirm(t(`Tambahkan template "${tpl.nama}" dari link?`))) return;
+  addTemplate(tpl);
+  showTab('preview');
+  toast(t('Template dari link ditambahkan. Import data dengan kolom yang sesuai untuk melihat hasilnya.'));
+}
+addEventListener('hashchange', openSharedTemplate);
+
 /* ---------------- Galeri template ---------------- */
 
 $('#tpl-gallery').addEventListener('click', () => {
@@ -2493,6 +2584,7 @@ addEventListener('appinstalled', () => {
 
 // Bahasa antarmuka (Indonesia / English); isi label & data tidak ikut diterjemahkan
 initI18n();
+openSharedTemplate(); // aplikasi dibuka dari link berisi template
 $('#lang-switch').addEventListener('click', (e) => {
   const b = e.target.closest('[data-lang]');
   if (b) setLang(b.dataset.lang);

@@ -13,6 +13,7 @@ const DEFAULTS = {
   groupNewSheet: true, // tiap kelompok mulai di lembar baru
   groupOnly: '', // hanya cetak kelompok ini ('' = semua)
   pdfFonts: true, // sematkan font asli komputer ke PDF (lihat pdfFonts.js)
+  gsheetUrl: '', // link Google Sheets terakhir (untuk "Ambil data" lagi)
   copies: 1,
   rangeFrom: null,
   rangeTo: null,

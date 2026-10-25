@@ -69,6 +69,10 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Google Sheets & berbagi template**
+- `src/share.js`: link Google Sheets (biasa / publikasi) → CSV export (CORS) dan diimport seperti CSV; link diingat. Pesan jelas bila sheet belum dibagikan atau dibuka dari file lokal.
+- *Bagikan link…*: template (tanpa data, gambar opsional) dikompresi deflate-raw + base64url di `#tpl=…`; saat dibuka → konfirmasi → divalidasi `normalizeTemplate` → ditambahkan; hash dibersihkan. Uji: sheet contoh publik 30 baris; link template 0,7 KB; link rusak ditolak.
+
 **Format sebagian teks**
 - Blok kata di kotak *Isi label* → Ctrl+B / Ctrl+I atau tombol B / I memasang/melepas `**…**` / `*…*` (tanpa blok: kata di kursor).
 
