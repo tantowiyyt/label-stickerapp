@@ -738,6 +738,28 @@ $('#btn-gen-open-2').addEventListener('click', () => openGenerator('fill'));
 
 /* ---------------- Tab ---------------- */
 
+/**
+ * Jalankan perubahan tampilan dengan animasi View Transitions bila didukung (dan pengguna
+ * tidak memilih "kurangi gerakan"); selain itu langsung. dir: 'next' | 'prev' untuk arah geser lembar.
+ */
+function withTransition(update, dir = 'next') {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || reduce) return update();
+  document.documentElement.dataset.vtDir = dir;
+  document.startViewTransition(update);
+}
+
+/** Pindah lembar preview dengan animasi geser. */
+function changePage(next) {
+  const target = Math.max(0, next);
+  if (target === state.page) return renderPreview();
+  const dir = target > state.page ? 'next' : 'prev';
+  withTransition(() => {
+    state.page = target;
+    renderPreview();
+  }, dir);
+}
+
 function showTab(tab) {
   state.tab = tab;
   for (const btn of document.querySelectorAll('.tab[data-tab]')) btn.classList.toggle('tab--active', btn.dataset.tab === tab);
@@ -749,7 +771,7 @@ function showTab(tab) {
 }
 
 for (const btn of document.querySelectorAll('.tab[data-tab]')) {
-  btn.addEventListener('click', () => showTab(btn.dataset.tab));
+  btn.addEventListener('click', () => withTransition(() => showTab(btn.dataset.tab)));
 }
 
 /* ---------------- Preview ---------------- */
@@ -1461,6 +1483,7 @@ addEventListener('hashchange', openSharedTemplate);
 /* ---------------- Galeri template ---------------- */
 
 $('#tpl-gallery').addEventListener('click', () => {
+  $('#gallery-dialog').showModal(); // dibuka dulu agar lebar grid diketahui (kartu unggulan)
   renderGallery($('#gallery-grid'), currentPreset(), (def, withData) => {
     if (withData) {
       if (state.table.rows.length && !confirm(t('Data yang ada sekarang akan diganti. Lanjutkan?'))) return;
@@ -1472,7 +1495,6 @@ $('#tpl-gallery').addEventListener('click', () => {
     showTab('preview');
     toast(t('Template dari galeri dipakai. Semua bagian bisa diubah di panel Isi Label.'));
   });
-  $('#gallery-dialog').showModal();
 });
 
 /* ---------------- Atur objek: rata di label, hapus, duplikat (toolbar mini & keyboard) ---------------- */
@@ -1936,7 +1958,7 @@ $('#preview').addEventListener('click', (e) => {
   toast(`Mulai dari label ke-${state.settings.startSlot + 1}.`);
 });
 
-$('#pg-prev').addEventListener('click', () => { state.page--; renderPreview(); });
+$('#pg-prev').addEventListener('click', () => changePage(state.page - 1));
 
 /* Lompat ke lembar tertentu: ketik nomor lalu Enter (atau keluar dari kotak) */
 let pageTyping = false; // jangan timpa angka yang sedang diketik pengguna
@@ -1944,8 +1966,7 @@ function goToPage(n) {
   pageTyping = false;
   const v = Math.round(Number(n));
   if (!Number.isFinite(v)) return renderPreview();
-  state.page = Math.max(0, v - 1);
-  renderPreview();
+  changePage(v - 1);
 }
 $('#pg-input').addEventListener('input', () => { pageTyping = true; });
 $('#pg-input').addEventListener('change', (e) => goToPage(e.target.value));
@@ -2109,10 +2130,9 @@ document.addEventListener('keydown', (e) => {
   const keys = { ArrowLeft: -1, ArrowRight: 1, PageUp: -1, PageDown: 1, Home: -Infinity, End: Infinity };
   if (!(e.key in keys)) return;
   e.preventDefault();
-  state.page = Math.max(0, state.page + keys[e.key]); // renderPreview membatasi ke lembar terakhir
-  renderPreview();
+  changePage(state.page + keys[e.key]); // renderPreview membatasi ke lembar terakhir
 });
-$('#pg-next').addEventListener('click', () => { state.page++; renderPreview(); });
+$('#pg-next').addEventListener('click', () => changePage(state.page + 1));
 $('#zoom').addEventListener('change', (e) => { state.zoom = e.target.value; renderPreview(); });
 window.addEventListener('resize', () => { if (state.zoom === 'fit') renderPreview(); });
 
@@ -2605,7 +2625,7 @@ $('#btn-theme').addEventListener('click', (e) => {
 themeMenu.addEventListener('click', (e) => {
   const b = e.target.closest('[data-theme-pick]');
   if (!b) return;
-  applyTheme(b.dataset.themePick);
+  withTransition(() => applyTheme(b.dataset.themePick));
   save('theme', b.dataset.themePick);
   toggleThemeMenu(false);
 });

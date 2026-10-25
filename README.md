@@ -317,6 +317,8 @@ Tombol **palet** di header membuka pilihan tema (tersimpan di browser; hasil cet
 | **Rosé** | merah anggur, tembaga, blush lembut |
 | **Ceria** | gradasi ungu–merah muda, warna cerah per langkah (tampilan lama) |
 
+**Sentuhan modern:** panel yang melayang di atas preview (toolbar mini, menu, kotak cari) bergaya kaca buram; lembar bergeser halus saat pindah halaman, dan perpindahan tema/tab memudar (View Transitions — otomatis mati bila sistem disetel *kurangi gerakan*); galeri template bergaya bento dengan kartu unggulan. Warna teks semua tema memenuhi kontras WCAG AA (≥ 4,5:1).
+
 ## Bahasa / Language
 
 Tombol **ID | EN** di kanan atas mengganti bahasa antarmuka (Indonesia / English) tanpa memuat ulang; pilihan tersimpan di browser. Saat pertama dibuka, bahasa mengikuti browser (Indonesia bila browser berbahasa Indonesia, selain itu English).

@@ -159,14 +159,18 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
  * onUse(def, withData) dipanggil saat tombol "Pakai" ditekan.
  */
 export function renderGallery(grid, preset, onUse) {
-  const box = { w: 236, h: 132 }; // px area pratinjau
-  const scale = Math.min(box.w / (preset.lebar * MM_TO_PX), box.h / (preset.tinggi * MM_TO_PX));
-  grid.replaceChildren(...GALLERY.map((def) => {
+  // kartu pertama = unggulan (bento): pada dialog lebar tampil 2× lebih besar
+  const fit = (w, h) => Math.min(w / (preset.lebar * MM_TO_PX), h / (preset.tinggi * MM_TO_PX));
+  const wide = grid.clientWidth >= 760;
+  grid.replaceChildren(...GALLERY.map((def, index) => {
+    const featured = index === 0;
+    const scale = featured && wide ? fit(480, 270) : fit(236, 132);
     const card = document.createElement('article');
-    card.className = 'gal-card';
+    card.className = 'gal-card' + (featured ? ' gal-card--featured' : '');
     card.innerHTML = `
       <div class="gal-preview" translate="no"><div class="gal-stage"></div></div>
       <div class="gal-body">
+        ${featured ? `<span class="gal-badge">${esc(t('Unggulan'))}</span>` : ''}
         <h3>${esc(pick(def.nama))}</h3>
         <p>${esc(pick(def.desc))}</p>
         <div class="gal-cols" translate="no">${def.columns.map((c) => `<code>{{${esc(c)}}}</code>`).join(' ')}</div>

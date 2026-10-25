@@ -69,6 +69,12 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Tren frontend 2026**
+- Efek kaca (backdrop-filter) untuk toolbar mini, menu, kotak cari melayang, toast; kilau tipis di header tema premium.
+- View Transitions: lembar bergeser kiri/kanan saat pindah halaman (tombol, panah, ketik nomor), pudar saat ganti tema/tab; dihormati `prefers-reduced-motion`.
+- Galeri bento dengan kartu unggulan 2× (container query).
+- Aksesibilitas: `--faint` digelapkan di semua tema → kontras ≥ 4,5:1 (sebelumnya 2,6–2,8:1).
+
 **Pilihan tema: Deluxe, Zamrud, Onyx, Rosé, Ceria**
 - Tombol palet membuka menu tema dengan contoh warna. Aturan tema premium kini berbasis variabel (`--hdr`, `--gold*`, `--pv-*`, …) sehingga tema baru cukup menentukan warnanya; warna bilah alamat (PWA `theme-color`) ikut tema.
 

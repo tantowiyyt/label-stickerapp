@@ -4,7 +4,7 @@
   --surface-2: #f7f8fb;
   --text: #182033;
   --muted: #667085;
-  --faint: #98a2b3;
+  --faint: #626b7b; /* ≥ 4,5:1 di atas putih (WCAG AA) */
   --line: #e2e6ee;
   --line-strong: #cfd5e0;
   --accent: #3e63dd;
@@ -712,7 +712,7 @@ dialog h2 { color: #5b21b6; }
   --surface-2: #f8f4ec;
   --text: #1b1f2c;
   --muted: #696674;
-  --faint: #9c97a0;
+  --faint: #67626d;
   --line: #e6dfcf;
   --line-strong: #d4c9b2;
   --accent: #1f2b4d;
@@ -748,7 +748,7 @@ dialog h2 { color: #5b21b6; }
   --surface-2: #f6f3ea;
   --text: #18231f;
   --muted: #66706a;
-  --faint: #98a19b;
+  --faint: #606963;
   --line: #e2ddcd;
   --line-strong: #cfc7b0;
   --accent: #0d4a3b;
@@ -784,7 +784,7 @@ dialog h2 { color: #5b21b6; }
   --surface-2: #f5f3ef;
   --text: #1a1a1d;
   --muted: #6a676c;
-  --faint: #9b989c;
+  --faint: #646166;
   --line: #e1ddd6;
   --line-strong: #ccc6bb;
   --accent: #1c1c21;
@@ -820,7 +820,7 @@ dialog h2 { color: #5b21b6; }
   --surface-2: #faf3f1;
   --text: #2a1b21;
   --muted: #76646b;
-  --faint: #a8979d;
+  --faint: #6f5f65;
   --line: #eddcd8;
   --line-strong: #dcc4be;
   --accent: #6e2a44;
@@ -1016,6 +1016,55 @@ dialog h2 { color: #5b21b6; }
 .sb-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: nowrap; }
 .sb-sep { width: 1px; height: 20px; background: var(--line); }
 .code-switches { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---------- Efek kaca (glassmorphism) untuk elemen yang melayang di atas preview ----------
+   Hanya panel kecil yang melayang; panel berisi teks panjang tetap solid agar mudah dibaca. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .line-toolbar, .tb-menu, .lt-menu, .theme-menu,
+  .pv-search.is-open .pv-search-box, .pv-search:has(#pv-search:not(:placeholder-shown)) .pv-search-box {
+    background: color-mix(in srgb, var(--surface, #fff) 76%, transparent) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+    border-color: color-mix(in srgb, var(--line-strong) 70%, transparent) !important;
+  }
+  #drag-info { background: rgba(17, 24, 39, .78); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .toast { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+}
+/* kilau kaca tipis di header tema premium */
+[data-theme]:not([data-theme='ceria']) .topbar { position: relative; }
+[data-theme]:not([data-theme='ceria']) .topbar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), transparent 55%);
+}
+
+/* ---------- View Transitions: lembar bergeser saat pindah halaman, pudar saat ganti tema/tab ---------- */
+.sheet-frame { view-transition-name: lembar; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; }
+::view-transition-old(lembar) { animation: .26s ease both vt-keluar; }
+::view-transition-new(lembar) { animation: .26s ease both vt-masuk; }
+@keyframes vt-keluar { to { opacity: 0; transform: translateX(calc(var(--vt-dir, 1) * -40px)); } }
+@keyframes vt-masuk { from { opacity: 0; transform: translateX(calc(var(--vt-dir, 1) * 40px)); } }
+:root[data-vt-dir='prev'] { --vt-dir: -1; }
+
+/* ---------- Galeri gaya bento: kartu unggulan 2× lebih besar (container query) ---------- */
+.gallery-grid { container: galeri / inline-size; }
+.gal-badge {
+  display: none; align-self: flex-start; padding: 1px 8px; border-radius: 999px;
+  background: var(--gold-soft, #f6eedb); color: var(--lt-active-ink, #6f5114); font-size: 11px; font-weight: 650; letter-spacing: .03em;
+}
+@container galeri (min-width: 760px) {
+  .gal-card--featured { grid-column: span 2; grid-row: span 2; }
+  .gal-card--featured .gal-preview { height: auto; flex: 1; min-height: 300px; }
+  .gal-card--featured .gal-body { flex: 0 0 auto; } /* ruang ekstra untuk pratinjau, tombol tetap dekat teks */
+  .gal-card--featured .gal-body h3 { font-size: 17px; }
+  .gal-card--featured .gal-badge { display: inline-block; }
+}
+
+/* gerak dikurangi: matikan animasi & transisi */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
 #gs-url { width: 100%; margin: 4px 0 8px; }
 #gs-error[hidden] { display: none; }
 #share-link { width: 100%; font: 12px/1.4 ui-monospace, Consolas, monospace; word-break: break-all; resize: vertical; margin: 6px 0 8px; }

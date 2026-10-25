@@ -56,6 +56,7 @@ export const EN = {
   'Urungkan': 'Undo',
   'Ulangi': 'Redo',
   'Riwayat': 'History',
+  'Unggulan': 'Featured',
   'Tema warna': 'Color theme',
   'Ganti tema warna': 'Switch color theme',
   'Google Sheets': 'Google Sheets',
