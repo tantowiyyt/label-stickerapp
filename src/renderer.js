@@ -157,6 +157,26 @@ function isDark(hex) {
   return 0.299 * r + 0.587 * g + 0.114 * b < 150;
 }
 
+/** SVG sebuah bentuk dalam satuan mm (viewBox = ukuran bentuk), garis tepi di dalam kotaknya. */
+export function shapeSvg(s) {
+  const sw = s.strokeW;
+  const dash = s.dash && sw ? ` stroke-dasharray="${(sw * 3).toFixed(2)} ${(sw * 2).toFixed(2)}"` : '';
+  const stroke = sw ? `stroke="${s.stroke}" stroke-width="${sw}"${dash}` : 'stroke="none"';
+  const fill = s.fill || 'none';
+  let body;
+  if (s.kind === 'line') {
+    body = s.w >= s.h
+      ? `<line x1="0" y1="${s.h / 2}" x2="${s.w}" y2="${s.h / 2}" ${stroke} />`
+      : `<line x1="${s.w / 2}" y1="0" x2="${s.w / 2}" y2="${s.h}" ${stroke} />`;
+  } else if (s.kind === 'ellipse') {
+    body = `<ellipse cx="${s.w / 2}" cy="${s.h / 2}" rx="${Math.max(0, (s.w - sw) / 2)}" ry="${Math.max(0, (s.h - sw) / 2)}" fill="${fill}" ${stroke} />`;
+  } else {
+    const r = Math.min(s.radius, s.w / 2, s.h / 2);
+    body = `<rect x="${sw / 2}" y="${sw / 2}" width="${Math.max(0, s.w - sw)}" height="${Math.max(0, s.h - sw)}" rx="${r}" fill="${fill}" ${stroke} />`;
+  }
+  return `<svg viewBox="0 0 ${s.w} ${s.h}" width="100%" height="100%" preserveAspectRatio="none" overflow="visible">${body}</svg>`;
+}
+
 /** Teks di bawah barcode (angka/isi kode) — ukuran dalam mm. */
 export function barcodeCaption(code) {
   const font = Math.min(3, code.h * 0.2);
@@ -368,6 +388,7 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
       strip.style.backgroundColor = deco.color;
       content.append(strip);
     }
+    appendShapes(content, 'back');
     appendDecals(content, 'back'); // di belakang teks (mis. watermark)
     content.append(textBox);
     for (const t of freeTextsFor(row)) {
@@ -382,8 +403,22 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
       content.append(div);
     }
     renderCode(content, row);
+    appendShapes(content, 'front');
     appendDecals(content, 'front');
     el.append(content);
+  }
+
+  /** Bentuk & garis: SVG berukuran w×h mm, ikut berputar bersama isi. */
+  function appendShapes(content, layer) {
+    for (const s of tpl.shapes ?? []) {
+      if (s.layer !== layer) continue;
+      const box = document.createElement('div');
+      box.className = `label-shape label-shape--${layer}`;
+      box.dataset.shape = s.id;
+      place(box, { u: s.x, v: s.y, w: s.w, h: s.h });
+      box.innerHTML = shapeSvg(s) + '<span class="decal-handle shape-handle" title="Tarik untuk mengubah ukuran"></span>';
+      content.append(box);
+    }
   }
 
   /** Gambar bebas (branding): posisi dalam koordinat isi label, ikut berputar bersama isi. */

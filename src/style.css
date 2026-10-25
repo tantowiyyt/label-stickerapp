@@ -749,6 +749,16 @@ dialog h2 { color: #5b21b6; }
 .label-band { position: absolute; }
 .label-photo { position: absolute; display: block; object-fit: cover; }
 .label-decal { position: absolute; z-index: 3; }
+.label-shape { position: absolute; z-index: 3; }
+.label-shape--back { z-index: 0; }
+.label-shape > svg { display: block; overflow: visible; pointer-events: none; }
+.sheet--preview .label-shape { cursor: move; touch-action: none; }
+.sheet--preview .label-shape:hover, .sheet--preview .label-shape.is-selected { outline: 0.3mm dashed #0891b2; outline-offset: 0.4mm; }
+.sheet--preview .label-shape.is-selected .shape-handle, .sheet--preview .label-shape:hover .shape-handle {
+  display: block; position: absolute; right: -1.4mm; bottom: -1.4mm;
+  width: 2.4mm; height: 2.4mm; border-radius: 50%;
+  background: #0891b2; border: 0.4mm solid #fff; cursor: nwse-resize;
+}
 .label-free { position: absolute; z-index: 2; white-space: pre; line-height: 1.15; }
 .label-decal--back { z-index: 0; }
 .label-text, .label-code, .label-photo { z-index: 1; }
@@ -883,7 +893,9 @@ dialog.gallery-dialog { width: min(1080px, calc(100vw - 32px)); max-width: none;
 .tb-pill .tb-btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
 .tb-pill .pv-search-info:not(:empty) { margin: 0 4px; }
 /* tombol ‹ › hasil cari hanya saat kotak cari terisi */
-.pv-search:has(#pv-search:placeholder-shown) .tb-btn { display: none; }
+.pv-search:has(#pv-search:placeholder-shown) .tb-btn:not(.pv-search-toggle) { display: none; }
+#pv-search-only { color: var(--accent); }
+#btn-only-visible[hidden] { display: none; }
 
 /* layar lebih kecil: teks tombol disembunyikan (ikon + tooltip), lalu kotak cari jadi ikon 🔍 */
 @media (max-width: 1700px) {
@@ -924,6 +936,13 @@ dialog.gallery-dialog { width: min(1080px, calc(100vw - 32px)); max-width: none;
 .ft-grid .ft-del { height: 34px; }
 .line-toolbar input.lt-text { width: 170px; height: 30px; font-size: 13px; }
 .lt-del { color: var(--danger); }
+.lt-shape { display: none; align-items: center; gap: 3px; }
+.line-toolbar--shape .lt-shape { display: inline-flex; }
+.line-toolbar .lt-shape select { width: auto; height: 30px; font-size: 12.5px; padding: 0 22px 0 6px; }
+.line-toolbar .lt-shape [hidden] { display: none !important; }
+.sh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sh-grid .sh-add { justify-content: flex-start; height: 32px; font-size: 13px; font-weight: 500; }
+.tb-menu--icons button { gap: 9px; }
 
 /* Toolbar mini: menu Posisi (rata objek di label) & mode objek (gambar/QR) */
 .lt-arrange { position: relative; display: inline-flex; }
@@ -1003,6 +1022,9 @@ dialog.gallery-dialog { width: min(1080px, calc(100vw - 32px)); max-width: none;
 }
 /* di preview: baris teks bisa digeser */
 .sheet--preview .label-line { cursor: grab; touch-action: none; border-radius: 0.4mm; }
+/* kotak teks tembus klik (kecuali barisnya) agar bentuk/gambar di lapisan belakang tetap bisa dipilih */
+.sheet--preview .label-text { pointer-events: none; }
+.sheet--preview .label-text .label-line { pointer-events: auto; }
 .sheet--preview .label-line:hover { box-shadow: 0 0 0 0.25mm rgba(37, 99, 235, .45); }
 .sheet--preview .label-line.is-selected { box-shadow: 0 0 0 0.3mm #2563eb; background: rgba(37, 99, 235, .06); }
 .sheet--preview .label-line.is-dragging-line { box-shadow: 0 0 0 0.3mm #2563eb; background: rgba(37, 99, 235, .1); }

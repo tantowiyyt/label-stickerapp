@@ -151,6 +151,35 @@ function drawFreeTexts(doc, texts, map) {
   }
 }
 
+/** Bentuk & garis (vektor). Garis tepi di dalam kotak, sama dengan tampilan (shapeSvg). */
+function drawShapes(doc, shapes, map, layer) {
+  for (const s of shapes) {
+    if (s.layer !== layer) continue;
+    const sw = s.strokeW;
+    doc.setLineWidth(sw || 0.01);
+    doc.setDrawColor(s.stroke);
+    doc.setLineDashPattern(s.dash && sw ? [sw * 3, sw * 2] : [], 0);
+    if (s.fill) doc.setFillColor(s.fill);
+    const mode = s.fill && sw ? 'FD' : s.fill ? 'F' : sw ? 'S' : null;
+    if (s.kind === 'line') {
+      if (!sw) continue;
+      const [a, b] = s.w >= s.h
+        ? [map.pt(s.x, s.y + s.h / 2), map.pt(s.x + s.w, s.y + s.h / 2)]
+        : [map.pt(s.x + s.w / 2, s.y), map.pt(s.x + s.w / 2, s.y + s.h)];
+      doc.line(a[0], a[1], b[0], b[1]);
+    } else if (mode) {
+      const [x, y, w, h] = map.rect(s.x + sw / 2, s.y + sw / 2, Math.max(0, s.w - sw), Math.max(0, s.h - sw));
+      if (s.kind === 'ellipse') doc.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, mode);
+      else {
+        const r = Math.min(s.radius, s.w / 2, s.h / 2);
+        if (r > 0) doc.roundedRect(x, y, w, h, r, r, mode);
+        else doc.rect(x, y, w, h, mode);
+      }
+    }
+  }
+  doc.setLineDashPattern([], 0);
+}
+
 function drawCode(doc, code, g, tpl, map) {
   const bars = { ...g };
   if (code.type !== 'qr' && tpl.code.showText) {
@@ -246,11 +275,13 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
         const g = geo.photo;
         doc.addImage(photoCache.get(ph.key), 'JPEG', ...map.rect(g.u, g.v, g.w, g.h), `foto-${ph.key}`, 'FAST');
       }
+      drawShapes(doc, tpl.shapes ?? [], map, 'back');
       drawDecals(map, 'back');
       drawText(doc, renderer.layout(item), renderer.geometry.text, tpl, map);
       drawFreeTexts(doc, renderer.freeTextsFor(item), map);
       const code = renderer.codeFor(item);
       if (code && !code.error) drawCode(doc, code, renderer.geometry.code, tpl, map);
+      drawShapes(doc, tpl.shapes ?? [], map, 'front');
       drawDecals(map, 'front');
     }
   }

@@ -14,7 +14,7 @@ import {
   parseTable, parseWorkbook, isExcelFile, readTextFile, downloadSampleCsv, downloadSampleXlsx, exportTableCsv, exportTableXlsx,
 } from './importer.js';
 import { mountDataTable, renderDataTable } from './dataTable.js';
-import { createLabelRenderer, contentBox, labelGeometry, barcodeCaption } from './renderer.js';
+import { createLabelRenderer, contentBox, labelGeometry, barcodeCaption, shapeSvg } from './renderer.js';
 import { mountLineToolbar, syncLineToolbar, focusToolbarText } from './lineToolbar.js';
 import {
   mountTemplateEditor, renderColumns, renderPhotoControls, currentTemplate, updateDecal, selectDecal, getSelectedDecal,
@@ -22,6 +22,7 @@ import {
   selectFree, getSelectedFree, getFreeText, updateFreeText, removeFreeText, addFreeText,
   undoTemplate, redoTemplate, historyState,
   getDecal, removeDecal, duplicateDecal, duplicateFreeText, addTemplate,
+  selectShape, getSelectedShape, getShape, addShape, updateShape, removeShape, duplicateShape,
   useCodeColumn,
 } from './templateEditor.js';
 import { loadPhotos, clearPhotos, photoCount, photoUrl, exportPhotos, importPhotos } from './photos.js';
@@ -411,6 +412,11 @@ $('#btn-cal-reset').addEventListener('click', () => {
 
 const refreshTable = () => {
   renderDataTable($('#data-table'), state.table, state.dataFilter, state.sort, state.dataPredicate?.fn);
+  // "Cetak hanya yang tampil": muncul saat tabel sedang dicari/difilter
+  const filtered = !!state.dataFilter.trim() || !!state.dataPredicate;
+  const shown = $('#data-table').querySelectorAll('tr[data-id]').length;
+  $('#btn-only-visible').hidden = !filtered || !shown;
+  $('#btn-only-visible-text').textContent = `${t('Cetak hanya yang tampil')} (${shown.toLocaleString('id-ID')})`;
   const pred = $('#data-pred');
   pred.hidden = !state.dataPredicate;
   if (state.dataPredicate) {
@@ -422,6 +428,26 @@ $('#data-pred').addEventListener('click', (e) => {
   if (!e.target.closest('#data-pred-clear')) return;
   state.dataPredicate = null;
   refreshTable();
+});
+
+/* ---------------- Cetak hanya baris tertentu (hasil cari / filter) ---------------- */
+
+/** Centang hanya baris dengan id di `ids`; baris lain tidak dicetak. Bisa diurungkan. */
+function checkOnly(ids) {
+  if (!ids.size) return toast(t('Tidak ada baris yang cocok.'), 'error');
+  snapshot(t('centang hasil filter'));
+  for (const r of state.table.rows) r.on = ids.has(r.id);
+  saveTable(state.table);
+  state.page = 0;
+  refreshTable();
+  renderDataSummary();
+  renderStats();
+  if (state.tab === 'preview') renderPreview();
+  toast(t(`${ids.size} baris dicentang untuk dicetak; baris lain tidak dicetak (Urungkan di tab Data untuk membatalkan).`));
+}
+
+$('#btn-only-visible').addEventListener('click', () => {
+  checkOnly(new Set([...$('#data-table').querySelectorAll('tr[data-id]')].map((tr) => tr.dataset.id)));
 });
 
 /* ---------------- Urungkan (Undo) untuk data ---------------- */
@@ -879,6 +905,8 @@ function renderPreview() {
   if (selLine != null) for (const el of sheet.querySelectorAll(`.label-line[data-line="${selLine}"]`)) el.classList.add('is-selected');
   const selFree = getSelectedFree();
   if (selFree) for (const el of sheet.querySelectorAll(`.label-free[data-free="${selFree}"]`)) el.classList.add('is-selected');
+  const selShape = getSelectedShape();
+  if (selShape) for (const el of sheet.querySelectorAll(`.label-shape[data-shape="${selShape}"]`)) el.classList.add('is-selected');
   if (codeSelected) for (const el of sheet.querySelectorAll('.label-code')) el.classList.add('is-selected');
 
   const frame = document.createElement('div');
@@ -1169,6 +1197,7 @@ let codeSelected = false;
 function selectCode(on) {
   // satu objek terpilih dalam satu waktu
   if (on && getSelectedDecal()) selectDecal(null);
+  if (on && getSelectedShape()) selectShape(null);
   if (on && (getSelectedLine() != null || getSelectedFree())) selectLine(null);
   codeSelected = on;
   for (const el of document.querySelectorAll('#preview .label-code')) el.classList.toggle('is-selected', on);
@@ -1372,10 +1401,12 @@ function arrangeSelected(where) {
   const i = getSelectedLine();
   const free = getFreeText(getSelectedFree());
   const d = getDecal(getSelectedDecal());
+  const sh = getShape(getSelectedShape());
   const code = codeSelected ? labelGeometry(tpl, currentPreset()).code : null;
   let r;
   if (i != null) r = selectedLineEl() && lineRect(selectedLineEl());
   else if (free) r = selectedFreeEl() && lineRect(selectedFreeEl());
+  else if (sh) r = { u: sh.x, v: sh.y, w: sh.w, h: sh.h };
   else if (d) r = { u: d.x, v: d.y, w: d.width, h: decalHeight(d) };
   else if (code) r = code;
   if (!r) return;
@@ -1391,6 +1422,7 @@ function arrangeSelected(where) {
     const l = tpl.lines[i];
     updateLineOffset(i, { dx: l.dx + du, dy: l.dy + dv });
   } else if (free) updateFreeText(free.id, { x: free.x + du, y: free.y + dv });
+  else if (sh) updateShape(sh.id, { x: sh.x + du, y: sh.y + dv });
   else if (d) updateDecal(d.id, { x: d.x + du, y: d.y + dv });
   else if (code) updateCode({ free: true, x: code.u + du, y: code.v + dv, w: code.w, h: code.h });
 }
@@ -1401,8 +1433,10 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
   const free = getFreeText(getSelectedFree());
   const d = getDecal(getSelectedDecal());
+  const sh = getShape(getSelectedShape());
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (free) removeFreeText(free.id);
+    if (sh) removeShape(sh.id);
+    else if (free) removeFreeText(free.id);
     else if (d) removeDecal(d.id);
     else if (codeSelected) {
       selectCode(false);
@@ -1411,12 +1445,13 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     toast(t('Objek dihapus. Ctrl+Z untuk mengurungkan.'));
   } else if (e.ctrlKey && e.key.toLowerCase() === 'd') {
-    if (!free && !d) return;
+    if (!free && !d && !sh) return;
     e.preventDefault();
-    if (free) duplicateFreeText(free.id);
+    if (sh) duplicateShape(sh.id);
+    else if (free) duplicateFreeText(free.id);
     else duplicateDecal(d.id);
-  } else if (d && !e.ctrlKey) {
-    if (e.key === 'Escape') return selectDecal(null);
+  } else if ((d || sh) && !e.ctrlKey) {
+    if (e.key === 'Escape') return sh ? selectShape(null) : selectDecal(null);
     const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (!dir) return;
     e.preventDefault();
@@ -1424,7 +1459,8 @@ document.addEventListener('keydown', (e) => {
     const step = e.shiftKey ? 2 : 0.5;
     const k = MM_TO_PX * (state.previewScale || 1);
     const { du, dv } = screenToContent(dir[0] * step * k, dir[1] * step * k);
-    updateDecal(d.id, { x: Math.round((d.x + du) * 10) / 10, y: Math.round((d.y + dv) * 10) / 10 });
+    if (sh) updateShape(sh.id, { x: sh.x + du, y: sh.y + dv });
+    else updateDecal(d.id, { x: Math.round((d.x + du) * 10) / 10, y: Math.round((d.y + dv) * 10) / 10 });
   }
 }, true);
 
@@ -1561,6 +1597,137 @@ function endFreeDrag() {
 $('#preview').addEventListener('pointerup', endFreeDrag);
 $('#preview').addEventListener('pointercancel', endFreeDrag);
 
+/* ---------------- Bentuk & garis di preview: pilih, seret (snap), ubah ukuran ---------------- */
+
+let shapeDrag = null;
+
+$('#preview').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.sheet--preview .label-shape');
+  if (!el || e.button !== 0 || e.target.closest('.label-decal')) return;
+  const s = getShape(el.dataset.shape);
+  if (!s) return;
+  e.preventDefault();
+  e.stopPropagation();
+  selectedSlot = el.closest('.label')?.dataset.slot ?? null;
+  selectCode(false);
+  selectShape(s.id);
+  const content = el.closest('.label-content');
+  const { box, text } = labelGeometry(currentTemplate(), currentPreset());
+  shapeDrag = {
+    id: s.id, content, box, resize: !!e.target.closest('.shape-handle'),
+    line: s.kind === 'line', horizontal: s.w >= s.h,
+    sx: e.clientX, sy: e.clientY, start: { x: s.x, y: s.y, w: s.w, h: s.h },
+    targets: snapTargets(content, box, text, null), moved: false,
+  };
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    // event sintetis tanpa pointer aktif
+  }
+});
+
+$('#preview').addEventListener('pointermove', (e) => {
+  if (!shapeDrag) return;
+  const d = shapeDrag;
+  if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
+  if (!d.moved) {
+    d.moved = true;
+    document.body.classList.add('is-dragging');
+  }
+  const { du, dv } = screenToContent(e.clientX - d.sx, e.clientY - d.sy);
+  const { start: s, box } = d;
+  const step = (n) => (e.altKey ? Math.round(n * 10) / 10 : Math.round(n * 2) / 2);
+  const thr = SNAP_PX / (MM_TO_PX * (state.previewScale || 1));
+  const guides = [];
+  let next;
+  if (d.resize) {
+    // garis: hanya panjangnya; bentuk lain: lebar & tinggi bebas. Tepi kanan/bawah menempel ke garis bantu.
+    let w = d.line && !d.horizontal ? s.w : Math.max(1, s.w + du);
+    let h = d.line && d.horizontal ? s.h : Math.max(1, s.h + dv);
+    const su = e.altKey || (d.line && !d.horizontal) ? null : snapAxis(s.x + w, 0, d.targets.u, thr);
+    const sv = e.altKey || (d.line && d.horizontal) ? null : snapAxis(s.y + h, 0, d.targets.v, thr);
+    if (su) {
+      w += su.shift;
+      guides.push({ axis: 'u', at: su.at, kind: su.kind });
+    } else w = step(w);
+    if (sv) {
+      h += sv.shift;
+      guides.push({ axis: 'v', at: sv.at, kind: sv.kind });
+    } else h = step(h);
+    next = { x: s.x, y: s.y, w: Math.max(1, Math.min(w, box.w - s.x)), h: Math.max(d.line ? s.h : 1, Math.min(h, box.h - s.y)) };
+  } else {
+    let x = s.x + du;
+    let y = s.y + dv;
+    const su = e.altKey ? null : snapAxis(x, s.w, d.targets.u, thr);
+    const sv = e.altKey ? null : snapAxis(y, s.h, d.targets.v, thr);
+    if (su) {
+      x += su.shift;
+      guides.push({ axis: 'u', at: su.at, kind: su.kind });
+    } else x = step(x);
+    if (sv) {
+      y += sv.shift;
+      guides.push({ axis: 'v', at: sv.at, kind: sv.kind });
+    } else y = step(y);
+    const clamp = (v, max) => Math.min(Math.max(0, v), Math.max(0, max));
+    next = { x: clamp(x, box.w - s.w), y: clamp(y, box.h - s.h), w: s.w, h: s.h };
+  }
+  d.next = Object.fromEntries(Object.entries(next).map(([k, v]) => [k, Math.round(v * 10) / 10]));
+  for (const el of document.querySelectorAll(`#preview .label-shape[data-shape="${d.id}"]`)) {
+    Object.assign(el.style, { left: `${d.next.x}mm`, top: `${d.next.y}mm`, width: `${d.next.w}mm`, height: `${d.next.h}mm` });
+    el.querySelector('svg').innerHTML = new DOMParser().parseFromString(shapeSvg({ ...getShape(d.id), ...d.next }), 'image/svg+xml').documentElement.innerHTML;
+    el.querySelector('svg').setAttribute('viewBox', `0 0 ${d.next.w} ${d.next.h}`);
+  }
+  drawGuides(d.content, guides);
+  const f = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: 1 });
+  showDragInfo(e, d.resize ? `${f(d.next.w)} × ${f(d.next.h)} mm` : `X ${f(d.next.x)} · Y ${f(d.next.y)} mm`);
+});
+
+function endShapeDrag() {
+  if (!shapeDrag) return;
+  const { id, next, moved, content } = shapeDrag;
+  shapeDrag = null;
+  document.body.classList.remove('is-dragging');
+  drawGuides(content, []);
+  hideDragInfo();
+  if (moved) {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 0);
+    if (next) updateShape(id, next);
+  }
+}
+$('#preview').addEventListener('pointerup', endShapeDrag);
+$('#preview').addEventListener('pointercancel', endShapeDrag);
+
+// tombol tambah bentuk: panel Isi Label & menu "Bentuk ▾" di toolbar
+for (const b of document.querySelectorAll('.sh-add')) {
+  b.addEventListener('click', () => {
+    selectedSlot = null;
+    selectCode(false);
+    addShape(b.dataset.shape);
+    showTab('preview');
+  });
+}
+const shapeMenu = $('#tb-shape-menu');
+const toggleShapeMenu = (open) => {
+  shapeMenu.hidden = !open;
+  $('#tb-shape-btn').setAttribute('aria-expanded', String(open));
+};
+$('#tb-shape-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleShapeMenu(shapeMenu.hidden);
+});
+shapeMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-shape]');
+  if (!b) return;
+  toggleShapeMenu(false);
+  selectedSlot = null;
+  selectCode(false);
+  addShape(b.dataset.shape);
+});
+document.addEventListener('click', (e) => {
+  if (!shapeMenu.hidden && !e.target.closest('#tb-shape')) toggleShapeMenu(false);
+});
+
 // Barcode/QR terpilih: panah menggeser (0,5 mm; Shift 2 mm; Ctrl 0,1 mm), Esc batal pilih.
 document.addEventListener('keydown', (e) => {
   if (!codeSelected || state.tab !== 'preview' || e.altKey || e.metaKey) return;
@@ -1601,10 +1768,11 @@ document.addEventListener('keydown', (e) => {
 
 $('#preview').addEventListener('click', (e) => {
   if (suppressClick || e.target.closest('.label-decal')) return;
-  if (e.target.closest('.label-line, .label-code, .label-free')) return; // klik tulisan/kode = pilih untuk digeser
+  if (e.target.closest('.label-line, .label-code, .label-free, .label-shape')) return; // klik objek = pilih untuk digeser
   if (getSelectedLine() != null || getSelectedFree()) selectLine(null);
   if (codeSelected) selectCode(false);
   if (getSelectedDecal()) selectDecal(null);
+  if (getSelectedShape()) selectShape(null);
   const el = e.target.closest('.label--slot');
   if (!el || state.previewMode !== 'data' || state.page !== 0) return;
   state.settings.startSlot = Number(el.dataset.slot);
@@ -1698,6 +1866,7 @@ function renderSearchInfo() {
   }
   info.classList.toggle('pv-search-info--none', !!s.q.trim() && !s.hits.length);
   $('#pv-search-prev').disabled = $('#pv-search-next').disabled = s.hits.length < 2;
+  $('#pv-search-only').hidden = !s.hits.length;
 
   // tombol "Cetak lembar ini": menonjol bila lembar ini berisi hasil pencarian
   const btn = $('#btn-print-page');
@@ -1735,6 +1904,18 @@ $('#pv-search').addEventListener('keydown', (e) => {
   else stepSearch(e.shiftKey ? -1 : 1);
 });
 $('#pv-search-prev').addEventListener('click', () => stepSearch(-1));
+// cetak hanya label hasil pencarian: baris yang isinya cocok dicentang, yang lain tidak
+$('#pv-search-only').addEventListener('click', () => {
+  const needle = state.search.q.trim().toLowerCase();
+  const cols = state.table.columns;
+  const ids = new Set(state.table.rows
+    .filter((r) => cols.some((c) => String(r.values[c] ?? '').toLowerCase().includes(needle)))
+    .map((r) => r.id));
+  checkOnly(ids);
+  $('#pv-search').value = '';
+  runSearch('');
+  $('#pv-search-wrap').classList.remove('is-open');
+});
 $('#pv-search-next').addEventListener('click', () => stepSearch(1));
 
 // Layar kecil: ikon 🔍 membuka kotak cari melayang; tertutup lagi bila kosong & tidak dipakai
@@ -2156,6 +2337,21 @@ mountLineToolbar({
         update: (patch) => updateLineStyle(i, patch),
         reset: () => updateLineOffset(i, { dx: 0, dy: 0 }),
         arrange: (where) => arrangeSelected(where),
+      };
+    }
+    const sh = getShape(getSelectedShape());
+    if (sh) {
+      const titles = { line: 'Garis', rect: 'Kotak', ellipse: 'Lingkaran / elips' };
+      return {
+        key: `shape:${sh.id}`, title: titles[sh.kind], object: true,
+        anchor: selectedObjectEl(`.label-shape[data-shape="${sh.id}"]`),
+        shape: sh,
+        updateShape: (patch) => updateShape(sh.id, patch),
+        remove: () => removeShape(sh.id),
+        duplicate: () => duplicateShape(sh.id),
+        arrange: (where) => arrangeSelected(where),
+        layer: sh.layer,
+        setLayer: (layer) => updateShape(sh.id, { layer }),
       };
     }
     const d = getDecal(getSelectedDecal());

@@ -1,7 +1,7 @@
 import {
   ALIGNS, VALIGNS, ORIENTATIONS, DEFAULT_TEMPLATE, templateLines, syncLines, applyQuickStyle,
   unknownPlaceholders, loadTemplates, saveTemplates as storeTemplates, newTemplateId, groupKey, fillGroupColors, newDecalId, decalHeight,
-  exportTemplatesFile, parseTemplatesFile, OVERFLOW_OPTIONS, overflowValue, newTextId, quickTexts, migrateLegacyLogo,
+  exportTemplatesFile, parseTemplatesFile, OVERFLOW_OPTIONS, overflowValue, newTextId, quickTexts, migrateLegacyLogo, newShapeId,
 } from './template.js';
 import { $, toast } from './util.js';
 import { fontOptionsHtml, askCustomFont, cssFamily } from './fonts.js';
@@ -353,6 +353,86 @@ function renderLayoutInfo() {
   $('#tpl-layout-info').innerHTML = `Tata letak (orientasi, ukuran font, posisi tulisan/QR/gambar) disimpan khusus untuk <b>${escapeHtml(p.nama.split(' — ')[0])}</b>. Ukuran label lain punya tata letak sendiri; yang belum pernah dipakai disesuaikan otomatis.`;
 }
 
+/* ---------- Bentuk & garis ---------- */
+
+let selectedShape = null;
+export const getSelectedShape = () => selectedShape;
+export const getShape = (id) => (currentTemplate().shapes ?? []).find((s) => s.id === id) ?? null;
+
+function clearShapeSelection() {
+  selectedShape = null;
+  for (const el of document.querySelectorAll('.label-shape')) el.classList.remove('is-selected');
+}
+
+export function selectShape(id) {
+  if (id) {
+    selectedLine = null;
+    selectedFree = null;
+    selectedDecal = null;
+    for (const el of document.querySelectorAll('.line-row, .label-line, .label-free, .ft-item, .label-decal, .dc-item')) el.classList.remove('is-selected');
+  }
+  selectedShape = id;
+  for (const el of document.querySelectorAll('.label-shape')) el.classList.toggle('is-selected', el.dataset.shape === id);
+  document.dispatchEvent(new CustomEvent('lineselect'));
+}
+
+export function updateShape(id, patch) {
+  const s = getShape(id);
+  if (!s) return;
+  Object.assign(s, patch);
+  for (const k of ['x', 'y', 'w', 'h']) if (k in patch) s[k] = r1(s[k]);
+  saveTemplates(templates);
+  ctx.onChange();
+}
+
+/**
+ * Tambah bentuk baru di tengah/tepi area isi label; langsung terpilih.
+ * kind: hline, vline, rect, round, ellipse, frame (bingkai label).
+ */
+export function addShape(kind) {
+  const tpl = currentTemplate();
+  const box = contentBox(tpl, ctx.getPreset());
+  const pad = Math.max(1, box.pad);
+  const base = { id: newShapeId(), stroke: '#000000', strokeW: 0.4, fill: '', radius: 0, dash: false, layer: 'front' };
+  const cw = box.w * 0.5;
+  const ch = box.h * 0.4;
+  const center = { x: r1((box.w - cw) / 2), y: r1((box.h - ch) / 2), w: r1(cw), h: r1(ch) };
+  const shapes = {
+    hline: { kind: 'line', x: pad, y: r1(box.h / 2 - 1), w: r1(box.w - 2 * pad), h: 2 },
+    vline: { kind: 'line', x: r1(box.w / 2 - 1), y: pad, w: 2, h: r1(box.h - 2 * pad) },
+    rect: { kind: 'rect', ...center },
+    round: { kind: 'rect', ...center, radius: 2 },
+    ellipse: { kind: 'ellipse', ...center },
+    frame: { kind: 'rect', x: 0.8, y: 0.8, w: r1(box.w - 1.6), h: r1(box.h - 1.6), strokeW: 0.5, radius: 1.5, layer: 'back' },
+  };
+  const s = { ...base, ...(shapes[kind] ?? shapes.rect) };
+  tpl.shapes ??= [];
+  tpl.shapes.push(s);
+  saveTemplates(templates);
+  ctx.onChange();
+  selectShape(s.id);
+  return s.id;
+}
+
+export function removeShape(id) {
+  const tpl = currentTemplate();
+  tpl.shapes = (tpl.shapes ?? []).filter((s) => s.id !== id);
+  if (selectedShape === id) selectShape(null);
+  saveTemplates(templates);
+  ctx.onChange();
+}
+
+export function duplicateShape(id) {
+  const s = getShape(id);
+  if (!s) return;
+  const copy = { ...s, id: newShapeId(), x: r1(s.x + 2), y: r1(s.y + 2) };
+  const tpl = currentTemplate();
+  tpl.shapes.splice(tpl.shapes.indexOf(s) + 1, 0, copy);
+  saveTemplates(templates);
+  ctx.onChange();
+  selectShape(copy.id);
+}
+
 /* ---------- Teks bebas (di luar data, mis. "Kepada Yth.") ---------- */
 
 let selectedFree = null;
@@ -361,6 +441,7 @@ export const getSelectedFree = () => selectedFree;
 export function selectFree(id) {
   selectedFree = id;
   selectedLine = null;
+  if (selectedShape) clearShapeSelection();
   for (const el of document.querySelectorAll('.line-row, .label-line')) el.classList.remove('is-selected');
   for (const el of document.querySelectorAll('.label-free')) el.classList.toggle('is-selected', el.dataset.free === id);
   for (const el of document.querySelectorAll('.ft-item')) el.classList.toggle('is-selected', el.dataset.id === id);
@@ -470,6 +551,7 @@ export const getSelectedLine = () => selectedLine;
 export function selectLine(i) {
   selectedLine = i;
   selectedFree = null; // satu pilihan teks dalam satu waktu (selectLine(null) = batal pilih semua)
+  if (selectedShape) clearShapeSelection();
   for (const el of document.querySelectorAll('.label-free, .ft-item')) el.classList.remove('is-selected');
   for (const el of document.querySelectorAll('.line-row')) el.classList.toggle('is-selected', Number(el.dataset.i) === i);
   for (const el of document.querySelectorAll('.label-line')) el.classList.toggle('is-selected', Number(el.dataset.line) === i);
@@ -517,6 +599,7 @@ export const getSelectedDecal = () => selectedDecal;
 
 export function selectDecal(id) {
   selectedDecal = id;
+  if (id && selectedShape) clearShapeSelection();
   for (const el of document.querySelectorAll('.dc-item')) el.classList.toggle('is-selected', el.dataset.id === id);
   for (const el of document.querySelectorAll('.label-decal')) el.classList.toggle('is-selected', el.dataset.decal === id);
   document.dispatchEvent(new CustomEvent('lineselect'));

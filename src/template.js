@@ -64,6 +64,9 @@ export const DEFAULT_TEMPLATE = {
   colorRule: { column: '', target: 'none', band: 4, colors: {} }, // warna per kelompok (mis. program studi)
   photo: { column: '', position: 'left', size: 18, ratio: '3x4' }, // foto per orang, dicocokkan lewat kolom
   decals: [], // gambar bebas: { id, src, w, h, x, y, width, opacity, layer, avoid } — x/y/width dalam mm
+  // bentuk & garis: { id, kind: 'rect'|'ellipse'|'line', x, y, w, h (mm), stroke, strokeW (mm), fill ('' = tanpa isi),
+  // radius (mm, kotak), dash, layer: 'front'|'back' }. Garis: mendatar bila w ≥ h, selain itu tegak.
+  shapes: [],
   // teks bebas di luar data (mis. "Kepada Yth."): { id, text, x, y, size, bold, italic, upper, color, font, align }
   // x/y dalam mm (koordinat isi label), size dalam pt; teks boleh berisi {{kolom}}
   texts: [],
@@ -415,6 +418,31 @@ function normalizeDecal(raw) {
   };
 }
 
+/* ---------- Bentuk & garis ---------- */
+
+export const newShapeId = () => 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+export const SHAPE_KINDS = ['rect', 'ellipse', 'line'];
+const isColor = (c) => /^#[0-9a-f]{6}$/i.test(c);
+
+function normalizeShape(raw) {
+  if (!raw || !SHAPE_KINDS.includes(raw.kind)) return null;
+  const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  return {
+    id: String(raw.id || newShapeId()),
+    kind: raw.kind,
+    x: num(raw.x, 2),
+    y: num(raw.y, 2),
+    w: Math.max(0.2, num(raw.w, 20)),
+    h: Math.max(0.2, num(raw.h, 10)),
+    stroke: isColor(raw.stroke) ? raw.stroke : '#000000',
+    strokeW: Math.min(5, Math.max(0, num(raw.strokeW, 0.3))),
+    fill: isColor(raw.fill) ? raw.fill : '',
+    radius: Math.max(0, num(raw.radius, 0)),
+    dash: !!raw.dash,
+    layer: raw.layer === 'front' ? 'front' : 'back',
+  };
+}
+
 /* ---------- Teks bebas (di luar data) ---------- */
 
 export const newTextId = () => 't-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -500,6 +528,7 @@ export function normalizeTemplate(raw) {
     decals: Array.isArray(raw.decals) ? raw.decals.map(normalizeDecal).filter(Boolean) : [],
     photo: normalizePhoto(raw.photo),
     texts: Array.isArray(raw.texts) ? raw.texts.map(normalizeFreeText).filter(Boolean) : [],
+    shapes: Array.isArray(raw.shapes) ? raw.shapes.map(normalizeShape).filter(Boolean) : [],
     layoutFor: String(raw.layoutFor ?? ''),
     layouts: raw.layouts && typeof raw.layouts === 'object' && !Array.isArray(raw.layouts) ? raw.layouts : {},
   };

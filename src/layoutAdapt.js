@@ -23,6 +23,7 @@ export function takeLayout(tpl) {
     photo: { position: tpl.photo.position, size: tpl.photo.size },
     decals: Object.fromEntries(tpl.decals.map((d) => [d.id, { x: d.x, y: d.y, width: d.width }])),
     texts: Object.fromEntries(tpl.texts.map((t) => [t.id, { x: t.x, y: t.y, size: t.size }])),
+    shapes: Object.fromEntries((tpl.shapes ?? []).map((s) => [s.id, { x: s.x, y: s.y, w: s.w, h: s.h }])),
   };
 }
 
@@ -57,6 +58,11 @@ function applyLayout(tpl, s) {
     d.x = num(x.x);
     d.y = num(x.y);
     if (num(x.width) > 0) d.width = num(x.width);
+  }
+  for (const sh of tpl.shapes ?? []) {
+    const x = s.shapes?.[sh.id];
+    if (!x) continue;
+    for (const k of ['x', 'y', 'w', 'h']) if (Number.isFinite(Number(x[k]))) sh[k] = Number(x[k]);
   }
   for (const t of tpl.texts) {
     const x = s.texts?.[t.id];
@@ -113,6 +119,17 @@ function adaptLayout(tpl, from, to) {
     d.x = r1(d.x * sx);
     d.y = r1(d.y * sy);
     d.width = Math.max(1, r1(d.width * s));
+  }
+  for (const sh of tpl.shapes ?? []) {
+    sh.x = r1(sh.x * sx);
+    sh.y = r1(sh.y * sy);
+    // garis: tebalnya tetap, hanya panjangnya yang diskalakan
+    if (sh.kind === 'line' && sh.w >= sh.h) sh.w = r1(sh.w * sx);
+    else if (sh.kind === 'line') sh.h = r1(sh.h * sy);
+    else {
+      sh.w = r1(sh.w * sx);
+      sh.h = r1(sh.h * sy);
+    }
   }
   for (const t of tpl.texts) {
     t.x = r1(t.x * sx);

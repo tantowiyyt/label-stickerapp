@@ -251,6 +251,20 @@ Klik objek di preview (baris teks, teks bebas, gambar, atau QR/barcode); toolbar
 - **Duplikat** (Ctrl+D) untuk teks bebas & gambar; **Hapus** (tombol Delete) untuk teks bebas, gambar, dan QR — bisa diurungkan dengan Ctrl+Z.
 - Gambar: **Di depan / Di belakang teks** dari menu Posisi, dan bisa digeser dengan tombol panah (Shift = 2 mm).
 
+## Bentuk & garis
+
+Menu **Bentuk ▾** di toolbar atas (atau tombol di panel *Isi Label → Bentuk & garis*): garis datar, garis tegak, kotak, kotak sudut bulat, lingkaran/elips, dan bingkai label.
+
+- Seret di preview (menempel ke tengah/tepi label dan baris teks), tarik **titik biru** di pojok untuk mengubah ukuran — untuk garis hanya panjangnya.
+- Klik bentuk untuk toolbar mini: warna & tebal garis, putus-putus, warna isi / tanpa isi, sudut bulat, posisi (rata), depan/belakang teks, duplikat (Ctrl+D), hapus (Delete).
+- Ikut tercetak dan masuk PDF sebagai vektor; posisinya disimpan per ukuran label.
+
+## Cetak hanya yang tampil
+
+- Tab **Data**: saat mencari, tombol **Cetak hanya yang tampil (N)** mencentang baris yang tampil saja; baris lain tidak dicetak.
+- **Preview**: setelah mencari, tombol filter di kotak cari melakukan hal yang sama untuk label hasil pencarian.
+- Bisa dibatalkan dengan **Urungkan** di tab Data.
+
 ## Cetak per kelompok
 
 Di *Printer & Cetak → Opsi cetak*, pilih **Kelompokkan per** sebuah kolom (mis. `kelas` atau `ruang`):

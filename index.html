@@ -113,6 +113,17 @@
               <div class="ft-quick" id="ft-quick" aria-label="Teks cepat" translate="no"></div>
               <div id="ft-list" class="ft-list"></div>
 
+              <div class="sub-title">Bentuk &amp; garis</div>
+              <p class="hint hint--top">Garis pemisah, kotak, lingkaran, atau bingkai label. Seret di preview, tarik titik biru di pojok untuk mengubah ukuran; klik untuk mengganti warna, tebal garis, dan isi.</p>
+              <div class="sh-grid">
+                <button type="button" class="ghost sh-add" data-shape="hline" title="Garis datar"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h12"/></svg><span>Garis datar</span></button>
+                <button type="button" class="ghost sh-add" data-shape="vline" title="Garis tegak"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12"/></svg><span>Garis tegak</span></button>
+                <button type="button" class="ghost sh-add" data-shape="rect" title="Kotak"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4" width="11" height="8"/></svg><span>Kotak</span></button>
+                <button type="button" class="ghost sh-add" data-shape="round" title="Kotak sudut bulat"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4" width="11" height="8" rx="2.5"/></svg><span>Kotak sudut bulat</span></button>
+                <button type="button" class="ghost sh-add" data-shape="ellipse" title="Lingkaran / elips"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="8" rx="5.5" ry="4.2"/></svg><span>Lingkaran / elips</span></button>
+                <button type="button" class="ghost sh-add" data-shape="frame" title="Bingkai label"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><rect x="3.5" y="3.5" width="9" height="9" rx="1" stroke-dasharray="1.5 1.5"/></svg><span>Bingkai label</span></button>
+              </div>
+
               <div class="sub-title">Tata letak isi</div>
               <p class="hint" id="tpl-layout-info"></p>
               <div class="tool-grid">
@@ -414,6 +425,17 @@
                   <div class="tb-menu" id="tb-text-menu" role="menu" translate="no" hidden></div>
                 </div>
                 <button type="button" class="tb-btn tb-btn--label" id="tb-image" title="Sisipkan gambar (logo, branding)"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="m2.5 12 3.5-3.5 2.5 2.5 2-2 3 3"/></svg><span>Gambar</span></button>
+                <div class="tb-split" id="tb-shape">
+                  <button type="button" class="tb-btn tb-btn--label" id="tb-shape-btn" aria-haspopup="menu" aria-expanded="false" title="Sisipkan bentuk / garis"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="7" height="7" rx="1"/><circle cx="10.5" cy="10.5" r="3.5"/></svg><span>Bentuk</span></button>
+                  <div class="tb-menu tb-menu--icons" id="tb-shape-menu" role="menu" hidden>
+                    <button type="button" role="menuitem" data-shape="hline"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h12"/></svg><span>Garis datar</span></button>
+                    <button type="button" role="menuitem" data-shape="vline"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12"/></svg><span>Garis tegak</span></button>
+                    <button type="button" role="menuitem" data-shape="rect"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4" width="11" height="8"/></svg><span>Kotak</span></button>
+                    <button type="button" role="menuitem" data-shape="round"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="4" width="11" height="8" rx="2.5"/></svg><span>Kotak sudut bulat</span></button>
+                    <button type="button" role="menuitem" data-shape="ellipse"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="8" rx="5.5" ry="4.2"/></svg><span>Lingkaran / elips</span></button>
+                    <button type="button" role="menuitem" data-shape="frame"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><rect x="3.5" y="3.5" width="9" height="9" rx="1" stroke-dasharray="1.5 1.5"/></svg><span>Bingkai label</span></button>
+                  </div>
+                </div>
                 <button type="button" class="tb-btn tb-btn--label" id="tb-qr" title="Sisipkan QR code"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="4.5" height="4.5"/><rect x="9.5" y="2" width="4.5" height="4.5"/><rect x="2" y="9.5" width="4.5" height="4.5"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 12v2"/></svg><span>QR</span></button>
               </div>
 
@@ -438,6 +460,7 @@
                   <label class="search"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input type="search" id="pv-search" placeholder="Cari di label…" aria-label="Cari teks di label" /></label>
                   <span id="pv-search-info" class="pv-search-info"></span>
                   <button type="button" id="pv-search-prev" class="tb-btn" title="Hasil sebelumnya (Shift+Enter)" aria-label="Hasil sebelumnya"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+                  <button type="button" id="pv-search-only" class="tb-btn" title="Cetak hanya label hasil pencarian (centang barisnya saja)" aria-label="Cetak hanya hasil pencarian" hidden><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3h11l-4.2 5v4.5l-2.6 1.3V8z"/></svg></button>
                   <button type="button" id="pv-search-next" class="tb-btn" title="Hasil berikutnya (Enter)" aria-label="Hasil berikutnya"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
                   </div>
                 </div>
@@ -489,6 +512,7 @@
               <button type="button" id="btn-row-add" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Tambah baris</button>
               <button type="button" id="btn-col-add" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Tambah kolom</button>
               <label class="search"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg><input type="search" id="data-search" placeholder="Cari nama, NIM, …" /></label>
+              <button type="button" id="btn-only-visible" class="primary" hidden title="Centang hanya baris yang sedang tampil; baris lain tidak dicetak"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3h11l-4.2 5v4.5l-2.6 1.3V8z"/></svg><span id="btn-only-visible-text">Cetak hanya yang tampil</span></button>
               <button type="button" id="btn-export-csv" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export CSV</button>
               <button type="button" id="btn-export-xlsx" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.3 8 10.5l3.2-3.2M2.5 10v3.5h11V10"/></svg>Export Excel</button>
               <button type="button" id="btn-gen-open-2" class="ghost"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx=".5"/><rect x="9" y="2" width="5" height="5" rx=".5"/><rect x="2" y="9" width="5" height="5" rx=".5"/><path d="M9.5 9.5h1.5v1.5M13.5 9.5v4M9.5 13.5h2"/></svg>Generator kode</button>

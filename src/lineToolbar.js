@@ -55,6 +55,15 @@ export function mountLineToolbar(context) {
     <select class="lt-overflow" title="Jika teks terlalu panjang untuk label">
       ${OVERFLOW_OPTIONS.map((o) => `<option value="${o.value}" title="${o.title}">↵ ${o.label}</option>`).join('')}
     </select>
+    <div class="lt-shape">
+      <label class="lt-color" title="Warna garis"><span class="lt-color-a">${svg('<path d="M2 13 13 2"/>')}</span><span class="lt-color-bar lt-stroke-bar"></span><input type="color" class="lt-stroke-input"></label>
+      <select class="lt-stroke-w" title="Tebal garis"><option value="0">Tanpa garis</option><option value="0.2">0,2 mm</option><option value="0.3">0,3 mm</option><option value="0.5">0,5 mm</option><option value="0.8">0,8 mm</option><option value="1.2">1,2 mm</option><option value="2">2 mm</option></select>
+      <button type="button" class="lt-btn" data-act="dash" title="Garis putus-putus">${svg('<path d="M2 8h3M7 8h2M11 8h3"/>')}</button>
+      <span class="lt-sep"></span>
+      <label class="lt-color" title="Warna isi"><span class="lt-color-a">${svg('<rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" opacity=".35"/><rect x="3" y="3" width="10" height="10" rx="1.5"/>')}</span><span class="lt-color-bar lt-fill-bar"></span><input type="color" class="lt-fill-input"></label>
+      <button type="button" class="lt-btn" data-act="nofill" title="Tanpa isi">${svg('<rect x="3" y="3" width="10" height="10" rx="1.5"/><path d="M3 13 13 3"/>')}</button>
+      <select class="lt-radius" title="Sudut kotak"><option value="0">Sudut tajam</option><option value="1">Bulat 1 mm</option><option value="2">Bulat 2 mm</option><option value="3">Bulat 3 mm</option><option value="5">Bulat 5 mm</option></select>
+    </div>
     <span class="lt-sep lt-arrange-sep"></span>
     <div class="lt-arrange">
       <button type="button" class="lt-btn lt-arrange-btn" data-act="arrange-menu" aria-haspopup="menu" aria-expanded="false" title="Posisi di label (rata kiri/tengah/kanan, atas/tengah/bawah)">${svg('<path d="M8 2v12"/><rect x="3" y="4" width="10" height="3" rx=".8"/><rect x="4.5" y="9" width="7" height="3" rx=".8"/>')}<span>Posisi</span>${svg('<path d="M4.5 6.5 8 10l3.5-3.5"/>')}</button>
@@ -100,6 +109,8 @@ export function mountLineToolbar(context) {
       return;
     }
     if (btn.dataset.act === 'duplicate') return t.duplicate?.();
+    if (btn.dataset.act === 'dash') return t.shape && t.updateShape({ dash: !t.shape.dash });
+    if (btn.dataset.act === 'nofill') return t.shape && t.updateShape({ fill: '' });
     const s = t.style;
     if (btn.dataset.prop) t.update({ [btn.dataset.prop]: !s[btn.dataset.prop] });
     // baris template: klik rata yang aktif = kembali ikut rata global
@@ -113,6 +124,10 @@ export function mountLineToolbar(context) {
   });
 
   bar.querySelector('.lt-text').addEventListener('input', (e) => ctx.target()?.setText?.(e.target.value));
+  bar.querySelector('.lt-stroke-input').addEventListener('input', (e) => ctx.target()?.updateShape?.({ stroke: e.target.value }));
+  bar.querySelector('.lt-fill-input').addEventListener('input', (e) => ctx.target()?.updateShape?.({ fill: e.target.value }));
+  bar.querySelector('.lt-stroke-w').addEventListener('change', (e) => ctx.target()?.updateShape?.({ strokeW: Number(e.target.value) }));
+  bar.querySelector('.lt-radius').addEventListener('change', (e) => ctx.target()?.updateShape?.({ radius: Number(e.target.value) }));
   bar.querySelector('.lt-font').addEventListener('change', (e) => {
     const t = ctx.target();
     if (!t) return;
@@ -196,6 +211,8 @@ export function syncLineToolbar() {
   }
   bar.querySelector('.lt-no').textContent = t.title;
 
+  bar.classList.toggle('line-toolbar--shape', !!t.shape);
+  if (t.shape) syncShapeControls(t.shape);
   if (t.object) return place(t.anchor, t.key);
   const text = bar.querySelector('.lt-text');
   text.hidden = !t.free;
@@ -219,6 +236,26 @@ export function syncLineToolbar() {
   if (!t.free) bar.querySelector('.lt-overflow').value = overflowValue(s);
   bar.querySelector('.lt-reset').hidden = t.free || (!s.dx && !s.dy);
   place(t.anchor, t.key);
+}
+
+function syncShapeControls(s) {
+  const nearest = (sel, v) => {
+    const el = bar.querySelector(sel);
+    const values = [...el.options].map((o) => Number(o.value));
+    el.value = String(values.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a)));
+  };
+  bar.querySelector('.lt-stroke-input').value = s.stroke;
+  bar.querySelector('.lt-stroke-bar').style.background = s.strokeW ? s.stroke : 'transparent';
+  bar.querySelector('.lt-fill-input').value = s.fill || '#ffffff';
+  bar.querySelector('.lt-fill-bar').style.background = s.fill || 'repeating-linear-gradient(45deg, #cbd5e1 0 2px, #fff 2px 4px)';
+  nearest('.lt-stroke-w', s.strokeW);
+  nearest('.lt-radius', s.radius);
+  bar.querySelector('[data-act="dash"]').classList.toggle('active', s.dash);
+  bar.querySelector('[data-act="nofill"]').classList.toggle('active', !s.fill);
+  // garis tidak punya isi & sudut
+  for (const el of bar.querySelectorAll('.lt-fill-input, [data-act="nofill"], .lt-radius')) {
+    (el.closest('label') ?? el).hidden = s.kind === 'line' || (el.matches('.lt-radius') && s.kind !== 'rect');
+  }
 }
 
 /** Letakkan toolbar di atas objek (atau di bawahnya bila tidak cukup ruang), tetap di dalam layar. */

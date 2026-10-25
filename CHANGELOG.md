@@ -69,6 +69,12 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Bentuk & garis**
+- Garis datar/tegak, kotak, kotak sudut bulat, lingkaran/elips, bingkai label: menu *Bentuk ▾* di toolbar & tombol di panel. Seret/ubah ukuran dengan snap (garis: hanya panjang), toolbar mini: warna & tebal garis, putus-putus, isi, sudut; depan/belakang teks; Delete/Ctrl+D/panah; ikut cetak & PDF (vektor). Kotak teks tembus klik di preview agar objek lapisan belakang bisa dipilih.
+
+**Cetak hanya yang tampil**
+- Tombol *Cetak hanya yang tampil (N)* di tab Data saat mencari/memfilter, dan tombol filter di kotak cari Preview: mencentang hanya baris yang cocok (bisa diurungkan).
+
 **Galeri template**
 - `src/gallery.js`: 7 desain siap pakai (kartu ujian + QR, undangan, alamat pengiriman, label harga + barcode, name tag, arsip, inventaris + QR) dengan pratinjau memakai renderer cetak & ukuran label aktif; *Pakai template* / *+ data contoh*; isi ID/EN.
 
