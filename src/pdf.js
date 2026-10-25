@@ -142,13 +142,74 @@ function drawFreeTexts(doc, texts, map) {
     const rows = t.value.split('\n');
     const widths = rows.map((r) => doc.getStringUnitWidth(r) * em);
     const boxW = Math.max(0, ...widths);
+    const rot = rotator(t.x + boxW / 2, t.y + (rows.length * em * LINE_HEIGHT) / 2, t.rot);
     rows.forEach((text, i) => {
       const free = boxW - widths[i];
       const u = t.x + (t.align === 'right' ? free : t.align === 'center' ? free / 2 : 0);
-      const [x, y] = map.pt(u, t.y + i * em * LINE_HEIGHT + em * BASELINE_EM);
-      if (text) doc.text(text, x, y, { angle: map.angle });
+      const [x, y] = map.pt(...rot(u, t.y + i * em * LINE_HEIGHT + em * BASELINE_EM));
+      if (text) doc.text(text, x, y, { angle: map.angle - (t.rot || 0) });
     });
   }
+}
+
+/** Putar titik (u, v) terhadap pusat (cx, cy) sebesar deg (searah jarum jam, seperti CSS). */
+function rotator(cx, cy, deg) {
+  if (!deg) return (u, v) => [u, v];
+  const a = (deg * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  return (u, v) => [cx + (u - cx) * cos - (v - cy) * sin, cy + (u - cx) * sin + (v - cy) * cos];
+}
+
+const KAPPA = 0.5523; // pendekatan busur seperempat lingkaran dengan kurva Bézier
+
+/**
+ * Jalur bentuk (dalam koordinat isi label) sebagai daftar segmen: titik awal + [x,y] garis atau
+ * [x1,y1,x2,y2,x3,y3] kurva. Dipakai untuk bentuk yang diputar (jsPDF tidak punya kotak/elips miring).
+ */
+function shapePath(s) {
+  const sw = s.strokeW;
+  const x = s.x + sw / 2;
+  const y = s.y + sw / 2;
+  const w = Math.max(0, s.w - sw);
+  const h = Math.max(0, s.h - sw);
+  if (s.kind === 'ellipse') {
+    const rx = w / 2;
+    const ry = h / 2;
+    const cx = x + rx;
+    const cy = y + ry;
+    const kx = rx * KAPPA;
+    const ky = ry * KAPPA;
+    return [[cx + rx, cy], [
+      [cx + rx, cy + ky, cx + kx, cy + ry, cx, cy + ry],
+      [cx - kx, cy + ry, cx - rx, cy + ky, cx - rx, cy],
+      [cx - rx, cy - ky, cx - kx, cy - ry, cx, cy - ry],
+      [cx + kx, cy - ry, cx + rx, cy - ky, cx + rx, cy],
+    ]];
+  }
+  const r = Math.min(s.radius, w / 2, h / 2);
+  const k = r * (1 - KAPPA);
+  const segs = [
+    [x + w - r, y], ...(r ? [[x + w - k, y, x + w, y + k, x + w, y + r]] : []),
+    [x + w, y + h - r], ...(r ? [[x + w, y + h - k, x + w - k, y + h, x + w - r, y + h]] : []),
+    [x + r, y + h], ...(r ? [[x + k, y + h, x, y + h - k, x, y + h - r]] : []),
+    [x, y + r], ...(r ? [[x, y + k, x + k, y, x + r, y]] : []),
+  ];
+  return [[x + r, y], segs];
+}
+
+/** Gambar jalur (koordinat isi) setelah diputar & dipetakan ke halaman, dengan doc.lines (segmen relatif). */
+function drawPath(doc, [start, segs], tf, mode) {
+  const p0 = tf(...start);
+  let cur = p0;
+  const rel = segs.map((sg) => {
+    const pts = [];
+    for (let i = 0; i < sg.length; i += 2) pts.push(tf(sg[i], sg[i + 1]));
+    const out = pts.flatMap(([px, py]) => [px - cur[0], py - cur[1]]);
+    cur = pts[pts.length - 1];
+    return out;
+  });
+  doc.lines(rel, p0[0], p0[1], [1, 1], mode, true);
 }
 
 /** Bentuk & garis (vektor). Garis tepi di dalam kotak, sama dengan tampilan (shapeSvg). */
@@ -161,12 +222,16 @@ function drawShapes(doc, shapes, map, layer) {
     doc.setLineDashPattern(s.dash && sw ? [sw * 3, sw * 2] : [], 0);
     if (s.fill) doc.setFillColor(s.fill);
     const mode = s.fill && sw ? 'FD' : s.fill ? 'F' : sw ? 'S' : null;
+    const rot = rotator(s.x + s.w / 2, s.y + s.h / 2, s.rot);
+    const tf = (u, v) => map.pt(...rot(u, v));
     if (s.kind === 'line') {
       if (!sw) continue;
       const [a, b] = s.w >= s.h
-        ? [map.pt(s.x, s.y + s.h / 2), map.pt(s.x + s.w, s.y + s.h / 2)]
-        : [map.pt(s.x + s.w / 2, s.y), map.pt(s.x + s.w / 2, s.y + s.h)];
+        ? [tf(s.x, s.y + s.h / 2), tf(s.x + s.w, s.y + s.h / 2)]
+        : [tf(s.x + s.w / 2, s.y), tf(s.x + s.w / 2, s.y + s.h)];
       doc.line(a[0], a[1], b[0], b[1]);
+    } else if (mode && s.rot) {
+      drawPath(doc, shapePath(s), tf, mode);
     } else if (mode) {
       const [x, y, w, h] = map.rect(s.x + sw / 2, s.y + sw / 2, Math.max(0, s.w - sw), Math.max(0, s.h - sw));
       if (s.kind === 'ellipse') doc.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, mode);
@@ -202,18 +267,24 @@ function drawCode(doc, code, g, tpl, map) {
   }
 }
 
-/** Putar gambar searah CSS (90° = searah jarum jam) lewat canvas, hasilnya data URL PNG. */
+/**
+ * Putar gambar searah CSS (positif = searah jarum jam, sudut berapa pun) lewat canvas.
+ * Kanvas seluas kotak pembatas hasil putaran; hasil data URL PNG.
+ */
 function rotateImage(src, deg) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      if (!deg) return resolve(src);
+      if (!(deg % 360)) return resolve(src);
+      const a = (deg * Math.PI) / 180;
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
       const c = document.createElement('canvas');
-      c.width = img.naturalHeight;
-      c.height = img.naturalWidth;
+      c.width = Math.max(1, Math.round(Math.abs(iw * Math.cos(a)) + Math.abs(ih * Math.sin(a))));
+      c.height = Math.max(1, Math.round(Math.abs(iw * Math.sin(a)) + Math.abs(ih * Math.cos(a))));
       const g = c.getContext('2d');
       g.translate(c.width / 2, c.height / 2);
-      g.rotate(((deg === 270 ? -90 : 90) * Math.PI) / 180);
+      g.rotate(a);
       g.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
       resolve(c.toDataURL('image/png'));
     };
@@ -239,12 +310,19 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
   embeddedFonts = fontInfo.map;
   const geo = renderer.geometry;
   const photoCache = new Map(); // satu foto dipakai berulang (jumlah/salinan) cukup diproses sekali
-  const decals = await Promise.all((tpl.decals ?? []).map(async (d) => ({ ...d, data: await rotateImage(d.src, tpl.orientation) })));
+  // gambar diputar sebesar orientasi isi + putaran gambar itu sendiri, lalu digambar sebagai kotak pembatasnya
+  const decals = await Promise.all((tpl.decals ?? []).map(async (d) => ({ ...d, data: await rotateImage(d.src, tpl.orientation + (d.rot || 0)) })));
   const drawDecals = (map, layer) => {
     for (const d of decals) {
       if (d.layer !== layer) continue;
       if (d.opacity < 1) doc.setGState(new doc.GState({ opacity: d.opacity }));
-      doc.addImage(d.data, imageFormat(d.data), ...map.rect(d.x, d.y, d.width, decalHeight(d)), `decal-${d.id}`, 'FAST');
+      const w = d.width;
+      const h = decalHeight(d);
+      const a = ((tpl.orientation + (d.rot || 0)) * Math.PI) / 180;
+      const bw = Math.abs(w * Math.cos(a)) + Math.abs(h * Math.sin(a));
+      const bh = Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a));
+      const [cx, cy] = map.pt(d.x + w / 2, d.y + h / 2);
+      doc.addImage(d.data, imageFormat(d.data), cx - bw / 2, cy - bh / 2, bw, bh, `decal-${d.id}`, 'FAST');
       if (d.opacity < 1) doc.setGState(new doc.GState({ opacity: 1 }));
     }
   };

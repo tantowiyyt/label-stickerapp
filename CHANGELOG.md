@@ -69,6 +69,12 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Format sebagian teks**
+- Blok kata di kotak *Isi label* → Ctrl+B / Ctrl+I atau tombol B / I memasang/melepas `**…**` / `*…*` (tanpa blok: kata di kursor).
+
+**Putar objek**
+- Properti `rot` untuk teks bebas, gambar, dan bentuk: pegangan putar di preview (snap 15°, Shift bebas), kotak sudut + ↻ 90° di toolbar mini. PDF: teks dengan sudut jsPDF, gambar diputar lewat canvas (sudut bebas), bentuk miring sebagai jalur Bézier vektor. Toolbar mini tidak lagi menutupi pegangan.
+
 **Bentuk & garis**
 - Garis datar/tegak, kotak, kotak sudut bulat, lingkaran/elips, bingkai label: menu *Bentuk ▾* di toolbar & tombol di panel. Seret/ubah ukuran dengan snap (garis: hanya panjang), toolbar mini: warna & tebal garis, putus-putus, isi, sudut; depan/belakang teks; Delete/Ctrl+D/panah; ikut cetak & PDF (vektor). Kotak teks tembus klik di preview agar objek lapisan belakang bisa dipilih.
 

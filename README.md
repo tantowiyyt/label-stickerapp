@@ -98,7 +98,7 @@ No. Kursi: **{{no_kursi}}**
 | Sintaks | Hasil |
 |---|---|
 | `{{kolom}}` | Isi kolom data. Tidak peka huruf besar/kecil & spasi: `{{no_kursi}}` cocok dengan kolom `No Kursi` |
-| `**teks**` / `*teks*` | Tebal / miring |
+| `**teks**` / `*teks*` | Tebal / miring — atau blok kata di kotak *Isi label* lalu tekan **Ctrl+B / Ctrl+I** (atau tombol **B / I** di atasnya); tekan lagi untuk melepas |
 | `{{nama\|upper}}` · `\|lower` · `\|title` | HURUF BESAR · huruf kecil · Kapital Tiap Kata |
 | `{{tgl_lahir\|tanggal}}` · `\|tgl` | 12 Januari 2005 · 12/01/2005. Membaca 2005-01-12, 12/01/2005, 12 Jan 2005, dan tanggal dari Excel |
 | `{{biaya\|angka}}` · `\|rupiah` | 1.250.000 · Rp 1.250.000 (membaca 1250000, 1.250.000, 1,250,000.5, Rp 75.000) |
@@ -258,6 +258,14 @@ Menu **Bentuk ▾** di toolbar atas (atau tombol di panel *Isi Label → Bentuk 
 - Seret di preview (menempel ke tengah/tepi label dan baris teks), tarik **titik biru** di pojok untuk mengubah ukuran — untuk garis hanya panjangnya.
 - Klik bentuk untuk toolbar mini: warna & tebal garis, putus-putus, warna isi / tanpa isi, sudut bulat, posisi (rata), depan/belakang teks, duplikat (Ctrl+D), hapus (Delete).
 - Ikut tercetak dan masuk PDF sebagai vektor; posisinya disimpan per ukuran label.
+
+## Putar objek
+
+Teks bebas, gambar, dan bentuk bisa diputar ke sudut berapa pun:
+
+- Tarik **titik ungu di atas objek** yang dipilih (menempel tiap 15°; tahan **Shift** untuk sudut bebas), atau
+- ketik sudutnya di toolbar mini (derajat, searah jarum jam) / tombol **↻ 90°**.
+- Ikut tercetak dan masuk PDF (teks & bentuk tetap vektor).
 
 ## Cetak hanya yang tampil
 

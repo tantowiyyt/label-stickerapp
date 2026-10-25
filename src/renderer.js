@@ -398,8 +398,10 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
       Object.assign(div.style, {
         left: `${t.x}mm`, top: `${t.y}mm`, fontSize: `${t.size}pt`, fontFamily: cssFamily(t.font),
         color: t.color, textAlign: t.align, fontWeight: t.bold ? '700' : '', fontStyle: t.italic ? 'italic' : '',
+        transform: t.rot ? `rotate(${t.rot}deg)` : '',
       });
       div.textContent = t.value || ' ';
+      div.insertAdjacentHTML('beforeend', '<span class="rot-handle" title="Tarik untuk memutar (Shift: bebas)"></span>');
       content.append(div);
     }
     renderCode(content, row);
@@ -416,7 +418,8 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
       box.className = `label-shape label-shape--${layer}`;
       box.dataset.shape = s.id;
       place(box, { u: s.x, v: s.y, w: s.w, h: s.h });
-      box.innerHTML = shapeSvg(s) + '<span class="decal-handle shape-handle" title="Tarik untuk mengubah ukuran"></span>';
+      if (s.rot) box.style.transform = `rotate(${s.rot}deg)`;
+      box.innerHTML = shapeSvg(s) + '<span class="decal-handle shape-handle" title="Tarik untuk mengubah ukuran"></span><span class="rot-handle" title="Tarik untuk memutar (Shift: bebas)"></span>';
       content.append(box);
     }
   }
@@ -430,13 +433,14 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
       box.dataset.decal = d.id;
       place(box, { u: d.x, v: d.y, w: d.width, h: decalHeight(d) });
       box.style.opacity = d.opacity;
+      if (d.rot) box.style.transform = `rotate(${d.rot}deg)`;
       const img = document.createElement('img');
       img.src = d.src;
       img.alt = '';
       img.draggable = false;
       box.append(img);
       // pegangan ubah ukuran (hanya tampil di preview)
-      box.insertAdjacentHTML('beforeend', '<span class="decal-handle" title="Tarik untuk mengubah ukuran"></span>');
+      box.insertAdjacentHTML('beforeend', '<span class="decal-handle" title="Tarik untuk mengubah ukuran"></span><span class="rot-handle" title="Tarik untuk memutar (Shift: bebas)"></span>');
       content.append(box);
     }
   }

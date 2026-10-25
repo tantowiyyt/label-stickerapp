@@ -415,10 +415,19 @@ function normalizeDecal(raw) {
     opacity: Math.min(1, Math.max(0.05, opacity)),
     layer: raw.layer === 'back' ? 'back' : 'front',
     avoid: !!raw.avoid, // teks di samping gambar (seperti Wrap Text → Square), bukan tertimpa
+    rot: normRot(raw.rot),
   };
 }
 
 /* ---------- Bentuk & garis ---------- */
+
+/** Sudut putar objek (derajat, searah jarum jam) dirapikan ke rentang -180..180. */
+export const normRot = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  const r = ((((n + 180) % 360) + 360) % 360) - 180;
+  return Math.round(r * 10) / 10;
+};
 
 export const newShapeId = () => 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 export const SHAPE_KINDS = ['rect', 'ellipse', 'line'];
@@ -440,6 +449,7 @@ function normalizeShape(raw) {
     radius: Math.max(0, num(raw.radius, 0)),
     dash: !!raw.dash,
     layer: raw.layer === 'front' ? 'front' : 'back',
+    rot: normRot(raw.rot),
   };
 }
 
@@ -469,6 +479,7 @@ function normalizeFreeText(raw) {
     color: /^#[0-9a-f]{6}$/i.test(raw.color) ? raw.color : '#000000',
     font: cleanFontName(raw.font) || null,
     align: pick(raw.align, ALIGNS, 'left'),
+    rot: normRot(raw.rot),
   };
 }
 

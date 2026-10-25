@@ -80,6 +80,10 @@ export function mountLineToolbar(context) {
         <button type="button" role="menuitem" class="lt-layer-item" data-layer="back">${svg('<rect x="2.5" y="2.5" width="8" height="8" rx="1" fill="currentColor" stroke="none"/><rect x="5" y="5" width="8" height="8" rx="1"/>')}<span>Di belakang teks</span></button>
       </div>
     </div>
+    <div class="lt-rot" title="Sudut putar (derajat, searah jarum jam)">
+      <input type="number" class="lt-rot-input" step="5" min="-180" max="180" aria-label="Sudut putar">
+      <button type="button" class="lt-btn" data-act="rot90" title="Putar 90°">${svg('<path d="M12.5 7.5A4.5 4.5 0 1 1 8 3h3"/><path d="M9.5 1 11.5 3 9.5 5"/>')}</button>
+    </div>
     <button type="button" class="lt-btn lt-dup" data-act="duplicate" title="Duplikat (Ctrl+D)">${svg('<rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M11 5V3.5a1 1 0 0 0-1-1H3.5a1 1 0 0 0-1 1V10a1 1 0 0 0 1 1H5"/>')}</button>
     <button type="button" class="lt-btn lt-reset" data-act="reset" title="Kembalikan posisi baris ini">↺</button>
     <button type="button" class="lt-btn lt-del" data-act="remove" title="Hapus (Delete)">${svg('<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5M7 7v4M9 7v4"/>')}</button>
@@ -109,6 +113,7 @@ export function mountLineToolbar(context) {
       return;
     }
     if (btn.dataset.act === 'duplicate') return t.duplicate?.();
+    if (btn.dataset.act === 'rot90') return t.setRot?.((t.rot || 0) + 90);
     if (btn.dataset.act === 'dash') return t.shape && t.updateShape({ dash: !t.shape.dash });
     if (btn.dataset.act === 'nofill') return t.shape && t.updateShape({ fill: '' });
     const s = t.style;
@@ -124,6 +129,10 @@ export function mountLineToolbar(context) {
   });
 
   bar.querySelector('.lt-text').addEventListener('input', (e) => ctx.target()?.setText?.(e.target.value));
+  bar.querySelector('.lt-rot-input').addEventListener('change', (e) => {
+    const v = parseFloat(String(e.target.value).replace(',', '.'));
+    if (Number.isFinite(v)) ctx.target()?.setRot?.(v);
+  });
   bar.querySelector('.lt-stroke-input').addEventListener('input', (e) => ctx.target()?.updateShape?.({ stroke: e.target.value }));
   bar.querySelector('.lt-fill-input').addEventListener('input', (e) => ctx.target()?.updateShape?.({ fill: e.target.value }));
   bar.querySelector('.lt-stroke-w').addEventListener('change', (e) => ctx.target()?.updateShape?.({ strokeW: Number(e.target.value) }));
@@ -212,6 +221,9 @@ export function syncLineToolbar() {
   bar.querySelector('.lt-no').textContent = t.title;
 
   bar.classList.toggle('line-toolbar--shape', !!t.shape);
+  bar.querySelector('.lt-rot').hidden = !t.setRot;
+  const rotInput = bar.querySelector('.lt-rot-input');
+  if (t.setRot && document.activeElement !== rotInput) rotInput.value = t.rot || 0;
   if (t.shape) syncShapeControls(t.shape);
   if (t.object) return place(t.anchor, t.key);
   const text = bar.querySelector('.lt-text');
@@ -266,8 +278,17 @@ function place(anchor, key) {
   const area = $('#preview').getBoundingClientRect();
   const bw = bar.offsetWidth;
   const bh = bar.offsetHeight;
-  let top = r.top - bh - 10;
-  if (top < area.top + 4) top = r.bottom + 10;
+  // jangan menutupi pegangan putar & pegangan ubah ukuran: ambil kotak gabungan objek + pegangannya
+  let objTop = r.top;
+  let objBottom = r.bottom;
+  for (const h of anchor.querySelectorAll(':scope > .rot-handle, :scope > .decal-handle')) {
+    const hr = h.getBoundingClientRect();
+    if (!hr.width) continue;
+    objTop = Math.min(objTop, hr.top);
+    objBottom = Math.max(objBottom, hr.bottom);
+  }
+  let top = objTop - bh - 10;
+  if (top < area.top + 4) top = objBottom + 10;
   const left = Math.min(Math.max(8, r.left + r.width / 2 - bw / 2), window.innerWidth - bw - 8);
   bar.style.top = `${Math.round(top)}px`;
   bar.style.left = `${Math.round(left)}px`;

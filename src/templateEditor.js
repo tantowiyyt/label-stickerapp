@@ -320,6 +320,35 @@ function loadImageFile(file) {
   });
 }
 
+/**
+ * Pasang/lepas penanda format (** tebal, * miring) di sekitar teks yang diblok.
+ * Tanpa blok: kata di posisi kursor. Bila sudah ditandai, penandanya dilepas.
+ */
+function toggleMark(ta, mark) {
+  let { selectionStart: a, selectionEnd: b, value: v } = ta;
+  if (a === b) { // tanpa blok: ambil kata di kursor
+    while (a > 0 && /[^\s*]/.test(v[a - 1])) a--;
+    while (b < v.length && /[^\s*]/.test(v[b])) b++;
+    if (a === b) return;
+  }
+  // abaikan spasi di tepi blok agar penanda menempel ke kata
+  while (a < b && /\s/.test(v[a])) a++;
+  while (b > a && /\s/.test(v[b - 1])) b--;
+  const n = mark.length;
+  const before = v.slice(a - n, a);
+  const after = v.slice(b, b + n);
+  // miring (*) tidak boleh salah membaca tebal (**) sebagai miring
+  const wrapped = before === mark && after === mark && (n === 2 || (v[a - 2] !== '*' && v[b + 1] !== '*'));
+  if (wrapped) {
+    ta.setRangeText(v.slice(a, b), a - n, b + n, 'select');
+  } else {
+    ta.setRangeText(mark + v.slice(a, b) + mark, a, b, 'end');
+    ta.setSelectionRange(a + n, b + n);
+  }
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
+}
+
 /** Tambah template baru (mis. dari galeri) lalu langsung pakai. */
 export function addTemplate(tpl) {
   templates.push(tpl);
@@ -849,6 +878,20 @@ export function mountTemplateEditor(context) {
     currentTemplate().text = e.target.value;
     changed({ lines: true });
   });
+
+  // Tebal/miring sebagian teks: blok kata lalu Ctrl+B / Ctrl+I (atau tombol B / I)
+  const textArea = $('#tpl-text');
+  textArea.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k !== 'b' && k !== 'i') return;
+    e.preventDefault();
+    toggleMark(textArea, k === 'b' ? '**' : '*');
+  });
+  for (const b of document.querySelectorAll('[data-mark]')) {
+    b.addEventListener('mousedown', (e) => e.preventDefault()); // jaga blok teks di kotak isian
+    b.addEventListener('click', () => toggleMark(textArea, b.dataset.mark));
+  }
 
   for (const btn of document.querySelectorAll('[data-quick]')) {
     btn.addEventListener('click', () => {

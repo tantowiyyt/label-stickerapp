@@ -27,7 +27,7 @@ import {
 } from './templateEditor.js';
 import { loadPhotos, clearPhotos, photoCount, photoUrl, exportPhotos, importPhotos } from './photos.js';
 import { mountGenerator, openGenerator } from './generator.js';
-import { usedColumns, normColumn, quickTexts, decalHeight } from './template.js';
+import { usedColumns, normColumn, quickTexts, decalHeight, normRot } from './template.js';
 import { initI18n, setLang, t, lang, unit } from './i18n.js';
 import { load, save, remove, rawEntries, setRaw, flush } from './storage.js';
 import { printSheets, showPrintGuide } from './print.js';
@@ -1024,7 +1024,8 @@ document.addEventListener('lineselect', () => syncLineToolbar());
 function lineRect(el) {
   const label = el.closest('.label');
   const range = document.createRange();
-  range.selectNodeContents(el);
+  // teks bebas: ukur tulisannya saja (tanpa pegangan putar)
+  range.selectNodeContents(el.classList.contains('label-free') && el.firstChild?.nodeType === Node.TEXT_NODE ? el.firstChild : el);
   const r = range.getBoundingClientRect();
   const L = label.getBoundingClientRect();
   const k = MM_TO_PX * (state.previewScale || 1);
@@ -1698,6 +1699,67 @@ function endShapeDrag() {
 $('#preview').addEventListener('pointerup', endShapeDrag);
 $('#preview').addEventListener('pointercancel', endShapeDrag);
 
+/* ---------------- Putar objek (teks bebas, gambar, bentuk) lewat pegangan putar ---------------- */
+
+const ROT_SELECTOR = { free: 'label-free', decal: 'label-decal', shape: 'label-shape' };
+let rotDrag = null;
+
+// fase capture: didahulukan dari penangan geser objek
+$('#preview').addEventListener('pointerdown', (e) => {
+  const handle = e.target.closest('.sheet--preview .rot-handle');
+  if (!handle || e.button !== 0) return;
+  const el = handle.parentElement;
+  const kind = Object.keys(ROT_SELECTOR).find((k) => el.classList.contains(ROT_SELECTOR[k]));
+  const id = el.dataset.free ?? el.dataset.decal ?? el.dataset.shape;
+  if (!kind || !id) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const r = el.getBoundingClientRect(); // pusat tidak berubah oleh rotasi
+  rotDrag = { kind, id, cx: r.left + r.width / 2, cy: r.top + r.height / 2, moved: false };
+  try {
+    handle.setPointerCapture(e.pointerId);
+  } catch {
+    // event sintetis tanpa pointer aktif
+  }
+  document.body.classList.add('is-dragging');
+}, true);
+
+$('#preview').addEventListener('pointermove', (e) => {
+  if (!rotDrag) return;
+  const d = rotDrag;
+  d.moved = true;
+  // sudut di layar (0° = pegangan di atas), dikurangi putaran isi/preview → sudut objek di label
+  let deg = (Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180) / Math.PI + 90 - screenRotation();
+  deg = e.shiftKey ? Math.round(deg) : Math.round(deg / 15) * 15;
+  d.next = normRot(deg);
+  for (const el of document.querySelectorAll(`#preview .${ROT_SELECTOR[d.kind]}[data-${d.kind}="${d.id}"]`)) {
+    el.style.transform = d.next ? `rotate(${d.next}deg)` : '';
+  }
+  showDragInfo(e, `${d.next.toLocaleString('id-ID')}°`);
+}, true);
+
+function endRotDrag() {
+  if (!rotDrag) return;
+  const { kind, id, next, moved } = rotDrag;
+  rotDrag = null;
+  document.body.classList.remove('is-dragging');
+  hideDragInfo();
+  if (!moved || next == null) return;
+  suppressClick = true;
+  setTimeout(() => { suppressClick = false; }, 0);
+  setRotation(kind, id, next);
+}
+$('#preview').addEventListener('pointerup', endRotDrag, true);
+$('#preview').addEventListener('pointercancel', endRotDrag, true);
+
+/** Simpan sudut putar sebuah objek. */
+function setRotation(kind, id, deg) {
+  const rot = normRot(deg);
+  if (kind === 'free') updateFreeText(id, { rot });
+  else if (kind === 'decal') updateDecal(id, { rot });
+  else if (kind === 'shape') updateShape(id, { rot });
+}
+
 // tombol tambah bentuk: panel Isi Label & menu "Bentuk ▾" di toolbar
 for (const b of document.querySelectorAll('.sh-add')) {
   b.addEventListener('click', () => {
@@ -2327,6 +2389,8 @@ mountLineToolbar({
         remove: () => removeFreeText(free.id),
         duplicate: () => duplicateFreeText(free.id),
         arrange: (where) => arrangeSelected(where),
+        rot: free.rot,
+        setRot: (deg) => setRotation('free', free.id, deg),
       };
     }
     const i = getSelectedLine();
@@ -2350,6 +2414,8 @@ mountLineToolbar({
         remove: () => removeShape(sh.id),
         duplicate: () => duplicateShape(sh.id),
         arrange: (where) => arrangeSelected(where),
+        rot: sh.rot,
+        setRot: (deg) => setRotation('shape', sh.id, deg),
         layer: sh.layer,
         setLayer: (layer) => updateShape(sh.id, { layer }),
       };
@@ -2361,6 +2427,8 @@ mountLineToolbar({
         remove: () => removeDecal(d.id),
         duplicate: () => duplicateDecal(d.id),
         arrange: (where) => arrangeSelected(where),
+        rot: d.rot,
+        setRot: (deg) => setRotation('decal', d.id, deg),
         layer: d.layer,
         setLayer: (layer) => updateDecal(d.id, { layer }),
       };
