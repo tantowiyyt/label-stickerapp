@@ -69,6 +69,9 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Logo ZaviLabels**
+- Logo: label harga emas dengan monogram "Z" di kotak navy (`public/logo.svg`, versi bertulisan `public/logo-wordmark.svg`). Dipakai di header (judul "Zavi" + "Labels" emas), favicon (SVG), ikon PWA 192/512 (latar penuh, aman maskable), dan README.
+
 **Nama aplikasi: ZaviLabels**
 - Judul, header, nama aplikasi terpasang (manifest), metadata PDF, nama file backup, dan pesan terkait memakai nama ZaviLabels. Tombol aksi *Cetak Label* tetap. Penanda internal (`cetak-label`, kunci `cetakLabel.*`, nama database) sengaja tidak diubah agar data, backup, dan link template lama tetap terbaca.
 

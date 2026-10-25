@@ -2,8 +2,8 @@
 // Halaman (index.html berisi seluruh aplikasi) diambil dari jaringan dulu agar selalu versi
 // terbaru; bila offline, dipakai salinan terakhir. File lain (ikon, manifest) dari cache dulu.
 
-const CACHE = 'cetak-label-v1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE = 'cetak-label-v2'; // naikkan bila ikon/aset berubah
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './logo.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

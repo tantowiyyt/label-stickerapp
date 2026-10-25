@@ -1,3 +1,5 @@
+<p align="center"><img src="public/logo-wordmark.svg" alt="ZaviLabels" width="300"></p>
+
 # ZaviLabels
 
 *(sebelumnya: Cetak Label)*
