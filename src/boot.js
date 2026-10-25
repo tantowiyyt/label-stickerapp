@@ -4,7 +4,8 @@ import { initStorage, load } from './storage.js';
 // aplikasi membaca data tersimpan langsung saat dimuat.
 initStorage().finally(() => {
   // tema warna dipasang sebelum aplikasi digambar agar tidak berkedip
-  document.documentElement.dataset.theme = load('theme', 'deluxe') === 'ceria' ? 'ceria' : 'deluxe';
+  const theme = load('theme', 'deluxe');
+  document.documentElement.dataset.theme = ['deluxe', 'zamrud', 'onyx', 'rose', 'ceria'].includes(theme) ? theme : 'deluxe';
   import('./main.js');
 });
 

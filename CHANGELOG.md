@@ -69,6 +69,9 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Barcode/QR bisa diseret di preview (otomatis jadi posisi *Bebas*) dan diubah ukurannya lewat titik ungu di pojok; snap & garis bantu seperti teks; tombol panah untuk geser halus.
 - Posisi bebas tidak mengurangi ruang teks; tombol *Bebas* di pilihan Posisi, ukuran bisa diketik (sisi QR / tinggi barcode).
 
+**Pilihan tema: Deluxe, Zamrud, Onyx, Rosé, Ceria**
+- Tombol palet membuka menu tema dengan contoh warna. Aturan tema premium kini berbasis variabel (`--hdr`, `--gold*`, `--pv-*`, …) sehingga tema baru cukup menentukan warnanya; warna bilah alamat (PWA `theme-color`) ikut tema.
+
 **Tema Deluxe**
 - Tema bawaan baru: header navy dengan garis emas & judul serif, tombol utama emas, latar gading, warna langkah bernada permata (zamrud, safir, perunggu, burgundi), pilihan objek & toolbar mini bernuansa emas. Tema lama tetap ada sebagai *Ceria* (tombol palet di header, tersimpan). Warna pilihan/toolbar mini kini lewat variabel CSS (`--sel`, `--lt-*`).
 

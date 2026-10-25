@@ -2582,14 +2582,35 @@ addEventListener('appinstalled', () => {
   toast(t('Cetak Label terpasang sebagai aplikasi.'));
 });
 
-// Tema warna: Deluxe (bawaan) ⇄ Ceria
-$('#btn-theme').addEventListener('click', () => {
-  const next = document.documentElement.dataset.theme === 'ceria' ? 'deluxe' : 'ceria';
-  document.documentElement.dataset.theme = next;
-  save('theme', next);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'ceria' ? '#5b21b6' : '#0b1222');
-  toast(t(next === 'ceria' ? 'Tema Ceria dipakai.' : 'Tema Deluxe dipakai.'));
+// Tema warna (tombol palet → menu): Deluxe (bawaan), Zamrud, Onyx, Rosé, Ceria
+const THEME_COLORS = { deluxe: '#0b1222', zamrud: '#04221b', onyx: '#050506', rose: '#2a0f1b', ceria: '#5b21b6' };
+const themeMenu = $('#theme-menu');
+function applyTheme(name) {
+  document.documentElement.dataset.theme = name;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[name]);
+  for (const b of themeMenu.querySelectorAll('[data-theme-pick]')) {
+    b.classList.toggle('active', b.dataset.themePick === name);
+    b.setAttribute('aria-checked', String(b.dataset.themePick === name));
+  }
+}
+const toggleThemeMenu = (open) => {
+  themeMenu.hidden = !open;
+  $('#btn-theme').setAttribute('aria-expanded', String(open));
+};
+applyTheme(document.documentElement.dataset.theme || 'deluxe');
+$('#btn-theme').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleThemeMenu(themeMenu.hidden);
 });
+themeMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme-pick]');
+  if (!b) return;
+  applyTheme(b.dataset.themePick);
+  save('theme', b.dataset.themePick);
+  toggleThemeMenu(false);
+});
+document.addEventListener('click', (e) => { if (!themeMenu.hidden && !e.target.closest('.theme-pick')) toggleThemeMenu(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !themeMenu.hidden) toggleThemeMenu(false); });
 
 // Bahasa antarmuka (Indonesia / English); isi label & data tidak ikut diterjemahkan
 initI18n();

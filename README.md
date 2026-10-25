@@ -307,7 +307,15 @@ Seperti toolbar Google Docs/Word: dua kelompok tombol tanpa bingkai.
 
 ## Tema warna
 
-Tombol **palet** di header mengganti tema: **Deluxe** (bawaan — navy tengah malam, emas sampanye, latar gading, judul serif) atau **Ceria** (gradasi ungu–merah muda, warna cerah per langkah). Pilihan tersimpan di browser; hasil cetak tidak terpengaruh.
+Tombol **palet** di header membuka pilihan tema (tersimpan di browser; hasil cetak tidak terpengaruh):
+
+| Tema | Nuansa |
+|---|---|
+| **Deluxe** (bawaan) | navy tengah malam, emas sampanye, gading, judul serif |
+| **Zamrud** | hijau zamrud tua, emas, krem |
+| **Onyx** | hitam pekat, emas, abu hangat |
+| **Rosé** | merah anggur, tembaga, blush lembut |
+| **Ceria** | gradasi ungu–merah muda, warna cerah per langkah (tampilan lama) |
 
 ## Bahasa / Language
 
