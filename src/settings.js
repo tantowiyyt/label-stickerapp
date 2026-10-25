@@ -9,6 +9,9 @@ const DEFAULTS = {
   printBorder: false,
   templateId: null,
   startSlot: 0, // posisi label pertama di lembar 1 (0 = kiri atas)
+  groupBy: '', // cetak per kelompok: nama kolom (mis. kelas/ruang), '' = tidak dikelompokkan
+  groupNewSheet: true, // tiap kelompok mulai di lembar baru
+  groupOnly: '', // hanya cetak kelompok ini ('' = semua)
   copies: 1,
   rangeFrom: null,
   rangeTo: null,

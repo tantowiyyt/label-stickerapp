@@ -10,7 +10,7 @@ Cocok untuk kartu ujian, label nama undangan, label alamat, label produk, dan se
 - Import data dari **CSV / Excel** atau paste langsung dari Excel
 - Editor isi label: placeholder `{{kolom}}`, gaya per baris, font, perataan, orientasi 0°/90°/270°, **auto-fit** tanpa memotong teks
 - **Barcode** (Code 128/39, EAN, UPC, ITF) & **QR code**, plus generator kode
-- Logo, **gambar branding yang bisa digeser**, **foto per orang**, warna per kelompok (mis. program studi)
+- **Gambar bebas** (logo, branding, watermark) yang bisa digeser, **foto per orang**, warna per kelompok (mis. program studi)
 - Preview per lembar persis seperti hasil cetak, cari teks, lompat ke lembar, cetak satu lembar
 - Kalibrasi printer, halaman tes dengan penggaris, pengaturan kertas di printer (A4), **export PDF** vektor
 
@@ -100,6 +100,10 @@ No. Kursi: **{{no_kursi}}**
 | `{{kolom}}` | Isi kolom data. Tidak peka huruf besar/kecil & spasi: `{{no_kursi}}` cocok dengan kolom `No Kursi` |
 | `**teks**` / `*teks*` | Tebal / miring |
 | `{{nama\|upper}}` · `\|lower` · `\|title` | HURUF BESAR · huruf kecil · Kapital Tiap Kata |
+| `{{tgl_lahir\|tanggal}}` · `\|tgl` | 12 Januari 2005 · 12/01/2005. Membaca 2005-01-12, 12/01/2005, 12 Jan 2005, dan tanggal dari Excel |
+| `{{biaya\|angka}}` · `\|rupiah` | 1.250.000 · Rp 1.250.000 (membaca 1250000, 1.250.000, 1,250,000.5, Rp 75.000) |
+| `{{gelar\|atau:-}}` | Teks pengganti bila nilainya kosong (mis. `-` atau `Belum ada`) |
+| `{{nama\|title\|atau:Tanpa Nama}}` | Format boleh berantai, dijalankan dari kiri ke kanan |
 | `{{no}}` | Nomor urut baris di data |
 | `{{tanggal}}` | Tanggal hari ini, mis. 16/10/2026 |
 
@@ -109,26 +113,33 @@ Klik nama kolom (chip) di panel untuk menyisipkan placeholder. Placeholder yang 
 
 - **Gaya cepat**: *Judul tebal*, *Semua tebal*, *Normal*.
 - **Gaya per baris**: tebal, miring, HURUF BESAR, ukuran (pt), warna, rata kiri/tengah/kanan (menimpa rata global; klik lagi untuk kembali ikut global), dan font.
-- **Tata letak isi**: font global, rata horizontal & vertikal, **orientasi isi** (Portrait 0°, Landscape 90°, Landscape terbalik 270°; yang diputar hanya isi label, susunan label di kertas tetap), dan padding.
+- **Jika teks terlalu panjang** (per baris, di *Gaya per baris* atau toolbar mini), mis. untuk nama yang sangat panjang:
+  - **Perkecil font** (bawaan): diperkecil sampai muat 1 baris (min. 6 pt), baru turun baris.
+  - **Maks. 2 baris** / **Maks. 3 baris**: turun ke baris berikutnya; diperkecil hanya bila 2/3 baris belum cukup.
+  - **Turun baris (bebas)**: ukuran tetap, turun baris sebanyak yang perlu (bila tinggi label tidak cukup, semua baris diperkecil bersama).
+  - **Potong …**: ukuran tetap 1 baris, kelebihannya diganti "…" (juga di PDF).
+- **Teks bebas (di luar data)**: teks tambahan seperti *Kepada Yth.*, *Bapak/Ibu*, *Di Tempat* yang bisa diletakkan di mana saja, seperti *Text Box* di Word. Klik **+ Tambah teks** atau salah satu tombol teks cepat (juga ada di toolbar atas: tombol **T+ Teks**, dan ▾ untuk teks cepat), lalu seret di preview (menempel ke tengah/tepi label dan baris lain). Klik teksnya untuk mengubah **isi**, font, ukuran, tebal/miring, warna, dan rata lewat toolbar mini; atau ketik di panel (X/Y/ukuran). Boleh berisi `{{kolom}}`, mis. `Kepada Yth. {{nama}}`. Teks bebas tidak diperkecil otomatis, jadi atur ukurannya agar muat. Ikut tercetak, masuk PDF, dan posisinya disimpan per ukuran label.
+- **Toolbar format seperti MS Word**: klik tulisan di preview, toolbar mini muncul di atasnya untuk mengganti **font**, **ukuran** (ketik, atau A− / A+), **tebal**, **miring**, **HURUF BESAR**, **warna** (6 warna cepat atau pilih sendiri), dan **rata** kiri/tengah/kanan. Perubahan berlaku untuk baris itu di semua label (sama dengan *Gaya per baris*). Pintasan: **Ctrl+B** tebal, **Ctrl+I** miring, **Ctrl+[ / Ctrl+]** perkecil/perbesar, **Esc** tutup.
+- **Geser tulisan di preview**: tarik baris teks mana pun langsung di preview; semua label ikut berubah. Agar rapi, tulisan **menempel otomatis** (garis bantu merah muda) ke tengah label, tepi label/area teks, dan tepi atau tengah baris lain; di luar itu bergeser per 0,5 mm dan kembali "menempel" ke posisi semula. Tahan **Alt** saat menarik untuk menggeser bebas (per 0,1 mm). Klik baris lalu pakai tombol panah untuk menggeser halus. Geseran tampil di *Gaya per baris* (mis. `X +2 · Y −1,5 mm`) dengan tombol **Kembalikan**; *Kembalikan semua baris ke posisi otomatis* untuk mengulang. Baris lain tidak ikut berpindah, auto-fit tetap berlaku, dan geseran ikut tercetak & masuk PDF.
+- **Tata letak isi**: font global, rata horizontal & vertikal, **orientasi isi** (Portrait 0°, Landscape 90°, Landscape terbalik 270°; yang diputar hanya isi label, susunan label di kertas tetap), dan padding. Orientasi isi juga ada di **status bar di bawah preview** (ikon huruf A yang berputar, di sebelah *Kertas* dan *Zoom*, seperti status bar MS Word).
 - **Font**: font yang terpasang di komputer. Font yang tidak terpasang ditandai dan dicetak dengan Arial. *Font lain (ketik nama)…* untuk font yang Anda install sendiri. Untuk nama panjang, font ramping seperti **Arial Narrow** atau **Bahnschrift Condensed** membuat teks tetap besar.
 - **Auto-fit**: ukuran font adalah ukuran maksimum. Baris yang terlalu panjang diperkecil sampai muat (minimal 6 pt); baru jika di 6 pt masih tidak muat, baris itu di-wrap. Jika total tinggi tidak muat, semua baris diperkecil bersama. Teks tidak pernah dipotong diam-diam.
 - **Ukuran font sama untuk semua label**: setiap baris memakai ukuran terkecil hasil auto-fit dari seluruh data, agar seragam.
 - **Sembunyikan baris yang datanya kosong**: baris template yang semua placeholdernya kosong tidak dicetak.
+- **Tata letak per ukuran label**: orientasi isi, padding, ukuran font, posisi tulisan, posisi/ukuran barcode/QR, foto, serta gambar & teks bebas disimpan **per ukuran label**; teks, font, warna, dan kolom tetap sama untuk semua ukuran. Kembali ke ukuran yang pernah dipakai = tata letaknya dipulihkan persis. Ukuran yang belum pernah dipakai disesuaikan otomatis: orientasi isi dipilih agar tulisan mengikuti sisi panjang label (mis. 101 tegak 50×100 → 103 mendatar 64×32), posisi & ukuran diskalakan, dan ukuran font hanya ikut membesar (auto-fit tetap memperkecil bila perlu).
 - Template tersimpan otomatis. *Simpan baru* membuat salinan; *Export/Import JSON* untuk memindahkan ke komputer lain.
 
 ## Gambar, foto, barcode & warna
 
-### Logo / gambar
+### Gambar bebas (logo, branding)
 
-Gambar dengan **area sendiri** di kiri/kanan/atas/bawah isi label (mis. logo kampus); teks menyesuaikan sisa ruang. Diperkecil otomatis (maks. 600 px) dan disimpan di template.
-
-### Gambar bebas (branding)
-
-Untuk logo sponsor, watermark, atau ornamen yang **melayang** di atas/belakang teks tanpa mengurangi ruang teks.
+Untuk logo kampus/sponsor, watermark, atau ornamen. Gambar diperkecil otomatis (maks. 600 px) dan disimpan di template.
 
 - *+ Tambah gambar…*, lalu **seret gambar langsung di preview**; tarik **titik ungu di pojok kanan bawah** untuk mengubah ukuran. Berlaku untuk semua label.
 - Saat diseret, gambar dijaga tetap di dalam label (per 0,5 mm). Posisi X/Y dan lebar juga bisa diketik (mm).
 - Lapisan **Depan / Belakang** teks dan **transparansi** (mis. Belakang + 20% untuk watermark).
+- **Teks di samping gambar**: teks pindah ke ruang kosong terbesar di sebelah gambar (seperti *Wrap Text → Square* di Word), cocok untuk logo di kiri/kanan. Matikan agar gambar melayang di atas teks.
+- Fitur lama *Logo / gambar* sudah digabung ke sini: logo dari template lama otomatis menjadi gambar bebas di sisi yang sama dengan *Teks di samping gambar* aktif.
 
 ### Foto per orang
 
@@ -145,6 +156,7 @@ Foto disimpan di **IndexedDB** browser (diperkecil maks. 480 px) dan **tidak iku
 - **Format**: QR code, Code 128 (paling umum), Code 39, EAN-13, EAN-8, UPC-A, ITF. Untuk EAN/UPC cukup isi 12/7/11 digit; checksum dihitung otomatis.
 - **Isi kode**: *Dari kolom* (mis. `nim`) atau *Teks / rumus*, mis. `https://kampus.ac.id/cek?nim={{nim}}` atau teks tetap.
 - Posisi dan ukuran bisa diatur; teks label menyesuaikan sisa ruang. Isi yang tidak valid untuk formatnya ditandai merah di preview dan tidak dicetak.
+- **Posisi bebas**: seret barcode/QR langsung di preview untuk memindahkannya (posisi otomatis menjadi **Bebas**), dan tarik **titik ungu** di pojok kanan bawah untuk mengubah ukurannya (QR tetap persegi). Saat digeser, barcode/QR menempel ke tengah/tepi label dan ke baris teks (garis bantu merah muda); tahan **Alt** untuk geser bebas. Klik lalu tombol panah untuk menggeser halus. Dalam posisi bebas, **teks otomatis pindah ke samping barcode/QR** (ruang kosong terbesar di kiri/kanan/atas/bawahnya, seperti *Wrap Text → Square* di Word), jadi nama panjang tetap terbungkus rapi di sebelahnya. Matikan *Teks di samping barcode/QR* bila ingin QR melayang di atas teks. Pilih Bawah/Atas/Kiri/Kanan untuk kembali ke tata letak otomatis.
 
 **Generator QR / Barcode** (tombol di bagian Barcode / QR code, atau *Generator kode* di tab Data):
 
@@ -189,6 +201,10 @@ Beberapa printer (mis. **Epson L5190**) tidak punya ukuran kertas 165 × 210 mm,
 
 Preview menampilkan kertas printer dengan garis oranye putus-putus di posisi lembar label.
 
+### Kertas portrait / landscape
+
+Tombol ikon *Kertas* **Portrait / Landscape** di status bar bawah preview (disimpan per ukuran label). **Landscape** memutar seluruh halaman preview 90° ke kanan (searah jarum jam), termasuk isi setiap label (seperti memutar kertasnya). Menggeser teks/barcode tetap bisa dan arahnya mengikuti layar. Hasil cetak dan PDF **tidak berubah**: kertas tetap dimasukkan ke printer seperti biasa dan di dialog cetak tetap pilih **Portrait**.
+
 ### Dialog cetak browser
 
 Sebelum dialog cetak terbuka, aplikasi menampilkan pengingat. Atur:
@@ -225,13 +241,49 @@ Di Chrome/Edge, opsi ini ada di *More settings*. Hanya halaman label yang tercet
 
 Kebanyakan printer tidak bisa mencetak sampai tepi kertas (biasanya 3–5 mm), jadi hindari isi yang terlalu dekat dengan tepi lembar.
 
+## Atur objek (rata, duplikat, hapus)
+
+Klik objek di preview (baris teks, teks bebas, gambar, atau QR/barcode); toolbar mini muncul di atasnya.
+
+- **Posisi ▾** — ratakan objek terhadap area isi label: *rata kiri / tengah horizontal / rata kanan* dan *rata atas / tengah vertikal / rata bawah* (di dalam padding). Berlaku untuk semua label.
+- **Duplikat** (Ctrl+D) untuk teks bebas & gambar; **Hapus** (tombol Delete) untuk teks bebas, gambar, dan QR — bisa diurungkan dengan Ctrl+Z.
+- Gambar: **Di depan / Di belakang teks** dari menu Posisi, dan bisa digeser dengan tombol panah (Shift = 2 mm).
+
+## Cetak per kelompok
+
+Di *Printer & Cetak → Opsi cetak*, pilih **Kelompokkan per** sebuah kolom (mis. `kelas` atau `ruang`):
+
+- Label diurutkan per kelompok dengan urutan alami (Ruang 1, Ruang 2, … Ruang 10); urutan di dalam kelompok tetap.
+- **Lembar baru untuk tiap kelompok** (aktif bawaan): setiap kelompok mulai di lembar baru sehingga mudah dipisahkan. Di preview tiap lembar diberi penanda *Kelompok: …* (tidak ikut tercetak).
+- **Cetak kelompok**: cetak satu kelompok saja (mis. hanya Ruang 2); jumlah label & lembar di header ikut menyesuaikan.
+
 ## Penyimpanan, backup & reset
 
-- Data, template, ukuran label, dan pengaturan disimpan di **localStorage** browser; foto per orang di **IndexedDB**. Semuanya tetap ada setelah browser ditutup.
+- Data, template, ukuran label, pengaturan, dan foto per orang disimpan di **IndexedDB** browser (kapasitas ratusan MB, cukup untuk ribuan baris + gambar); aplikasi meminta browser agar data ini tidak dihapus otomatis. Semuanya tetap ada setelah browser ditutup.
+- Data dari versi lama (localStorage, maks. ±5 MB) dipindahkan otomatis saat aplikasi pertama kali dibuka. Bila IndexedDB tidak tersedia, aplikasi kembali memakai localStorage.
 - Penyimpanan browser terikat pada lokasi file: bila `dist/index.html` dipindah ke folder lain, data lama tidak ikut.
-- **Backup & pulihkan** (panel ④): satu file JSON berisi data, template, ukuran, dan pengaturan (tanpa foto). Gunakan untuk pindah komputer.
+- **Backup & pulihkan** (panel ④): satu file JSON berisi data, template, ukuran, dan pengaturan. Centang **Sertakan foto per orang** agar foto ikut tersimpan (file jadi lebih besar). Gunakan untuk pindah komputer.
+- **Pengingat backup**: bila ada data dan belum pernah / lebih dari 7 hari tidak di-backup, muncul pita kuning di atas preview dengan tombol *Download backup* (atau *Nanti* untuk menunda 3 hari).
 - **Reset data…**: pilih bagian yang dikembalikan ke kondisi awal (data, template, ukuran label, foto, pengaturan printer & cetak, tampilan panel). Ada tombol *Download backup* di dialog yang sama.
 - Ukuran label dan template juga bisa diexport/import terpisah (JSON).
+
+## Toolbar preview
+
+Seperti toolbar Google Docs/Word: dua kelompok tombol tanpa bingkai.
+
+- **Kiri — edit:** **↶ Urungkan / ↷ Ulangi** perubahan desain label (geser, font, ukuran, warna, QR, gambar, teks bebas, orientasi, …) hingga 50 langkah — perubahan beruntun yang rapat (mengetik, menekan panah) dihitung satu langkah; lalu **T+ Teks** (▾ teks cepat), **Gambar** (sisipkan logo/gambar bebas), **QR** (pasang QR code, kolom dipilih otomatis).
+- **Kanan — tampilan:** isi preview (*Label data / Halaman tes*), ‹ nomor lembar ›, **cari** (Ctrl+F; Enter / ‹ › untuk hasil berikutnya/sebelumnya, Esc menutup), dan **Cetak lembar ini** (berwarna biru “Cetak lembar N” bila lembar ini berisi hasil pencarian).
+- Di layar kecil tombol menjadi ikon saja (keterangan muncul saat mouse diarahkan) dan kotak cari muncul **melayang** di bawah ikon 🔍, jadi toolbar tidak bergeser.
+
+## Bahasa / Language
+
+Tombol **ID | EN** di kanan atas mengganti bahasa antarmuka (Indonesia / English) tanpa memuat ulang; pilihan tersimpan di browser. Saat pertama dibuka, bahasa mengikuti browser (Indonesia bila browser berbahasa Indonesia, selain itu English).
+
+- Yang diterjemahkan: semua menu, tombol, petunjuk, notifikasi, dan dialog.
+- Yang **tidak** diterjemahkan: isi label (teks, data, teks bebas), nama kolom, nama template, dan hasil cetak/PDF.
+- Teks cepat di *Teks bebas* ikut bahasa: *Kepada Yth., Di Tempat, …* (ID) atau *To:, Dear, Attn:, …* (EN).
+
+*The **ID | EN** switch in the top right changes the interface language. Label content, data, column and template names are never translated.*
 
 ## Pintasan keyboard
 
@@ -240,8 +292,13 @@ Kebanyakan printer tidak bisa mencetak sampai tepi kertas (biasanya 3–5 mm), j
 | **Ctrl+P** | Cetak label (bukan tampilan aplikasi) |
 | **← / →**, PageUp / PageDown | Lembar sebelumnya / berikutnya di preview |
 | **Home / End** | Lembar pertama / terakhir |
-| **Enter** / **Shift+Enter** (di kotak cari) | Hasil pencarian berikutnya / sebelumnya |
+| **Ctrl+F** (tab Preview) | Cari teks di label |
+| **Delete** / **Ctrl+D** (objek terpilih di preview) | Hapus / duplikat teks bebas, gambar, atau QR |
+| **Enter** / **Shift+Enter** (di kotak cari) | Hasil pencarian berikutnya / sebelumnya; **Esc** menutup pencarian |
 | **Ctrl+Z** (tab Data, di luar kotak isian) | Urungkan perubahan data |
+| **Ctrl+Z / Ctrl+Y** (tab Preview, di luar kotak isian) | Urungkan / ulangi perubahan desain label (juga tombol ↶ ↷ di toolbar) |
+| **Ctrl+B / Ctrl+I / Ctrl+[ / Ctrl+]** (baris teks terpilih di preview) | Tebal / miring / perkecil / perbesar font |
+| **← ↑ ↓ →** (baris teks terpilih di preview) | Geser baris 0,5 mm · **Shift** 2 mm · **Ctrl** 0,1 mm; **Esc** batal pilih |
 
 ## Masalah umum
 
@@ -254,6 +311,15 @@ Kebanyakan printer tidak bisa mencetak sampai tepi kertas (biasanya 3–5 mm), j
 | Warna latar tidak tercetak | Centang *Background graphics* di *More settings* dialog cetak |
 | Font tidak sesuai di komputer lain | Font harus terpasang di komputer tersebut; font yang tidak ada dicetak dengan Arial |
 | Foto hilang setelah pindah komputer | Foto tidak ikut backup; masukkan ulang folder foto |
+
+## Dipasang di web / VPS (PWA)
+
+Hasil build (`dist/`) berisi `index.html` (seluruh aplikasi), `sw.js`, `manifest.webmanifest`, dan ikon. Cukup disajikan sebagai file statis (mis. Nginx, Cloudflare Pages) lewat **HTTPS**:
+
+- Aplikasi bisa **di-install** (tombol **Pasang** di header, atau ikon pasang di address bar Chrome/Edge) dan dibuka seperti aplikasi biasa.
+- Setelah sekali dibuka online, aplikasi **tetap bisa dibuka tanpa internet** (service worker). Saat online, versi terbaru diambil otomatis.
+- Data setiap pengguna tetap di browser masing-masing; server tidak menyimpan data peserta.
+- `dist/index.html` juga tetap bisa dibuka langsung dari folder (tanpa server); service worker hanya aktif lewat http(s).
 
 ## Pengembangan
 
@@ -279,7 +345,8 @@ Preview, cetak, dan PDF memakai geometri dan hasil auto-fit yang sama, sehingga 
 | `src/sheet.js` | DOM lembar & label (dipakai bersama preview dan cetak), halaman tes |
 | `src/template.js` | Model template: placeholder & format, gaya baris, gambar, kode, warna kelompok |
 | `src/templateEditor.js` | Panel editor isi label |
-| `src/renderer.js` | Geometri isi label (teks, logo, foto, kode, strip) dan gambar label ke DOM |
+| `src/i18n.js`, `src/i18n-en.js` | Bahasa antarmuka. Teks ditulis dalam bahasa Indonesia di kode/HTML; kamus `EN` (teks persis) dan `EN_PATTERNS` (teks berisi angka/nama) menerjemahkannya. Teks baru di antarmuka cukup ditambahkan ke kamus; elemen ber-`translate="no"` dilewati |
+| `src/renderer.js` | Geometri isi label (teks, foto, kode, strip, gambar & teks bebas) dan gambar label ke DOM |
 | `src/fit.js` | Auto-fit ukuran font (diukur dengan canvas) |
 | `src/fonts.js` | Daftar & deteksi font terpasang |
 | `src/code.js` | Barcode & QR sebagai data vektor, file PNG/SVG |

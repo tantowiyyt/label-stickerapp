@@ -1,6 +1,7 @@
 // Daftar font. Aplikasi berjalan offline, jadi yang dipakai adalah font yang
 // terpasang di komputer (umumnya ada di Windows; sebagian ikut terpasang dengan MS Office).
 
+import { t } from './i18n.js';
 export const DEFAULT_FONT = 'Arial';
 
 export const FONT_GROUPS = [
@@ -82,10 +83,10 @@ export function fontOptionsHtml(current, inheritLabel) {
 
 /** Tanya nama font custom. Mengembalikan nama bersih atau null. */
 export function askCustomFont() {
-  const name = cleanFontName(prompt('Nama font yang terpasang di komputer (mis. "Poppins", "Montserrat"):') ?? '');
+  const name = cleanFontName(prompt(t('Nama font yang terpasang di komputer (mis. "Poppins", "Montserrat"):')) ?? '');
   if (!name) return null;
   if (!isFontAvailable(name)) {
-    alert(`Font "${name}" tidak terdeteksi di komputer ini. Label akan memakai Arial sampai font tersebut dipasang.`);
+    alert(t(`Font "${name}" tidak terdeteksi di komputer ini. Label akan memakai Arial sampai font tersebut dipasang.`));
   }
   return name;
 }

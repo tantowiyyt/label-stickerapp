@@ -13,14 +13,21 @@ import {
   parseTable, parseWorkbook, isExcelFile, readTextFile, downloadSampleCsv, downloadSampleXlsx, exportTableCsv, exportTableXlsx,
 } from './importer.js';
 import { mountDataTable, renderDataTable } from './dataTable.js';
-import { createLabelRenderer, contentBox } from './renderer.js';
+import { createLabelRenderer, contentBox, labelGeometry, barcodeCaption } from './renderer.js';
+import { mountLineToolbar, syncLineToolbar, focusToolbarText } from './lineToolbar.js';
 import {
   mountTemplateEditor, renderColumns, renderPhotoControls, currentTemplate, updateDecal, selectDecal, getSelectedDecal,
+  selectLine, getSelectedLine, updateLineOffset, updateCode, updateLineStyle, syncTemplateLayout,
+  selectFree, getSelectedFree, getFreeText, updateFreeText, removeFreeText, addFreeText,
+  undoTemplate, redoTemplate, historyState,
+  getDecal, removeDecal, duplicateDecal, duplicateFreeText,
   useCodeColumn,
 } from './templateEditor.js';
-import { loadPhotos, clearPhotos, photoCount, photoUrl } from './photos.js';
+import { loadPhotos, clearPhotos, photoCount, photoUrl, exportPhotos, importPhotos } from './photos.js';
 import { mountGenerator, openGenerator } from './generator.js';
-import { usedColumns, normColumn } from './template.js';
+import { usedColumns, normColumn, quickTexts, decalHeight } from './template.js';
+import { initI18n, setLang, t, lang, unit } from './i18n.js';
+import { load, save, remove, rawEntries, setRaw, flush } from './storage.js';
 import { printSheets, showPrintGuide } from './print.js';
 import { $, fmt, toast, downloadText } from './util.js';
 
@@ -50,6 +57,15 @@ const calibration = () => ({
 const mediaFor = (p) => normalizeMedia(state.settings.media?.[p.id] ?? DEFAULT_MEDIA);
 const pageFor = (p) => pageLayout(p, mediaFor(p));
 
+/**
+ * Kertas landscape: seluruh halaman preview diputar 90° searah jarum jam (isi label
+ * ikut berputar). Cetak & PDF tidak berubah: kertas tetap masuk printer seperti biasa.
+ */
+const isLandscape = () => mediaFor(currentPreset()).orientation === 'landscape';
+
+/** Putaran total isi label di layar (derajat searah jarum jam): orientasi isi + putaran preview. */
+const screenRotation = () => (currentTemplate().orientation + (isLandscape() ? 90 : 0)) % 360;
+
 /** Ukuran halaman cetak + offset total (kalibrasi + posisi lembar label di kertas printer). */
 function placement(p) {
   const page = pageFor(p);
@@ -60,9 +76,89 @@ function placement(p) {
 /** Label yang akan dicetak: baris dicentang × kolom jumlah × salinan per label. */
 function printItems() {
   const copies = Math.max(1, Math.round(Number(state.settings.copies)) || 1);
-  const rows = expandRows(state.table);
+  let rows = expandRows(state.table);
+  const col = groupColumn();
+  if (col && state.settings.groupOnly) rows = rows.filter((r) => groupName(r, col) === state.settings.groupOnly);
   return copies === 1 ? rows : rows.flatMap((r) => Array(copies).fill(r));
 }
+
+/* ---------------- Cetak per kelompok (mis. per kelas / ruang ujian) ---------------- */
+
+/** Kolom pengelompokan yang masih ada di data, atau null. */
+const groupColumn = () => (state.settings.groupBy && state.table.columns.includes(state.settings.groupBy) ? state.settings.groupBy : null);
+const groupName = (row, col) => String(row.values[col] ?? '').trim();
+// urutan alami: "Ruang 2" sebelum "Ruang 10"
+const naturalCompare = (a, b) => a.localeCompare(b, 'id', { numeric: true, sensitivity: 'base' });
+
+/** Kelompok berurutan alami: [{ name, items }], urutan baris di dalam kelompok tetap. */
+function groupItems(items, col) {
+  const map = new Map();
+  for (const it of items) {
+    const name = groupName(it, col);
+    if (!map.has(name)) map.set(name, []);
+    map.get(name).push(it);
+  }
+  return [...map].sort(([a], [b]) => (a === '') - (b === '') || naturalCompare(a, b)).map(([name, list]) => ({ name, items: list }));
+}
+
+/**
+ * Pembagian label ke lembar-lembar. Dengan pengelompokan: label diurutkan per kelompok dan
+ * (bila dipilih) tiap kelompok mulai di lembar baru. Setiap halaman diberi .group (nama kelompok).
+ * "Mulai dari label ke-" hanya berlaku untuk lembar pertama.
+ */
+function printPages(p) {
+  const items = printItems();
+  const per = labelsPerSheet(p);
+  const start = startSlot(p);
+  const col = groupColumn();
+  if (!col) return paginate(items, per, start);
+  const groups = groupItems(items, col);
+  const label = (name) => name || t('(kosong)');
+  if (state.settings.groupNewSheet !== false) {
+    const pages = [];
+    for (const g of groups) {
+      for (const pg of paginate(g.items, per, pages.length ? 0 : start)) {
+        pg.group = label(g.name);
+        pages.push(pg);
+      }
+    }
+    return pages;
+  }
+  const pages = paginate(groups.flatMap((g) => g.items), per, start);
+  for (const pg of pages) pg.group = [...new Set(pg.map(({ item }) => label(groupName(item, col))))].join(', ');
+  return pages;
+}
+
+/** Isi pilihan "Kelompokkan per" & "Cetak kelompok" sesuai data sekarang. */
+function renderGroupOptions() {
+  const cols = state.table.columns;
+  const col = groupColumn();
+  const sel = $('#opt-group');
+  sel.innerHTML = `<option value="">${escapeHtml(t('— tidak dikelompokkan —'))}</option>`
+    + cols.map((c) => `<option value="${escapeHtml(c)}"${c === col ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('');
+  $('#opt-group-extra').hidden = !col;
+  if (!col) return;
+  $('#opt-group-new').checked = state.settings.groupNewSheet !== false;
+  const all = expandRows(state.table);
+  const groups = groupItems(all, col);
+  if (state.settings.groupOnly && !groups.some((g) => g.name === state.settings.groupOnly)) state.settings.groupOnly = '';
+  const only = $('#opt-group-only');
+  only.innerHTML = `<option value="">${escapeHtml(t('Semua kelompok'))} (${groups.length})</option>`
+    + groups.map((g) => `<option value="${escapeHtml(g.name)}"${g.name === state.settings.groupOnly ? ' selected' : ''}>${escapeHtml(g.name || t('(kosong)'))} — ${g.items.length.toLocaleString('id-ID')} ${unit(g.items.length, 'label')}</option>`).join('');
+}
+
+function updateGroupSetting(patch) {
+  Object.assign(state.settings, patch);
+  persistSettings();
+  state.page = 0;
+  renderGroupOptions();
+  renderPreview();
+  renderStats();
+  renderDataSummary();
+}
+$('#opt-group').addEventListener('change', (e) => updateGroupSetting({ groupBy: e.target.value, groupOnly: '' }));
+$('#opt-group-new').addEventListener('change', (e) => updateGroupSetting({ groupNewSheet: e.target.checked }));
+$('#opt-group-only').addEventListener('change', (e) => updateGroupSetting({ groupOnly: e.target.value }));
 
 const startSlot = (p) => Math.min(Math.max(0, Math.round(Number(state.settings.startSlot)) || 0), Math.max(0, labelsPerSheet(p) - 1));
 
@@ -82,7 +178,11 @@ function selectPreset(id) {
   state.settings.presetId = id;
   state.page = 0;
   persistSettings();
+  // tata letak isi mengikuti ukuran label (disimpan per ukuran; ukuran baru disesuaikan otomatis)
+  const layout = syncTemplateLayout();
   renderAll();
+  if (layout === 'adapted') toast('Tata letak isi disesuaikan otomatis dengan ukuran label ini. Tata letak ukuran sebelumnya tetap tersimpan.');
+  else if (layout === 'restored') toast('Memakai tata letak yang tersimpan untuk ukuran label ini.');
 }
 
 const PRESET_GROUPS = [
@@ -168,13 +268,12 @@ const shortName = (nama) => nama.split(' — ')[0];
 function renderStats() {
   const p = currentPreset();
   const labels = printItems().length;
-  const per = labelsPerSheet(p);
-  const sheets = per && labels ? Math.ceil((startSlot(p) + labels) / per) : 0;
+  const sheets = labels && labelsPerSheet(p) ? printPages(p).length : 0;
   const range = sheetRange(sheets);
   $('#stats').innerHTML =
-    `<span class="stat"><b>${labels.toLocaleString('id-ID')}</b> label</span>` +
-    `<span class="stat"><b>${sheets.toLocaleString('id-ID')}</b> lembar</span>` +
-    (sheets && !range.all ? `<span class="stat">cetak lembar <b>${range.from}–${range.to}</b></span>` : '') +
+    `<span class="stat"><b>${labels.toLocaleString('id-ID')}</b> ${unit(labels, 'label')}</span>` +
+    `<span class="stat"><b>${sheets.toLocaleString('id-ID')}</b> ${unit(sheets, 'lembar')}</span>` +
+    (sheets && !range.all ? `<span class="stat">${t('cetak lembar')} <b>${range.from}–${range.to}</b></span>` : '') +
     `<span class="stat">${escapeHtml(shortName(p.nama))}</span>`;
 }
 
@@ -224,7 +323,7 @@ $('#btn-preset-dup').addEventListener('click', () => {
 $('#btn-preset-del').addEventListener('click', () => {
   if (state.presets.length <= 1) return toast('Minimal harus ada satu ukuran.', 'error');
   const p = currentPreset();
-  if (!confirm(`Hapus ukuran "${p.nama}"?`)) return;
+  if (!confirm(t(`Hapus ukuran "${p.nama}"?`))) return;
   const idx = state.presets.indexOf(p);
   state.presets.splice(idx, 1);
   persistPresets();
@@ -235,7 +334,7 @@ $('#btn-preset-default').addEventListener('click', () => {
   const p = currentPreset();
   const def = DEFAULT_PRESETS.find((d) => d.id === p.id);
   if (!def) return;
-  if (!confirm(`Kembalikan "${p.nama}" ke nilai bawaan? Ukuran, margin, dan jarak yang sudah Anda ubah untuk ukuran ini akan hilang.`)) return;
+  if (!confirm(t(`Kembalikan "${p.nama}" ke nilai bawaan? Ukuran, margin, dan jarak yang sudah Anda ubah untuk ukuran ini akan hilang.`))) return;
   Object.assign(p, normalizePreset(def));
   persistPresets();
   renderAll();
@@ -267,7 +366,7 @@ $('#file-import').addEventListener('change', async (e) => {
 });
 
 $('#btn-reset').addEventListener('click', () => {
-  if (!confirm('Kembalikan semua preset bawaan ke nilai awal? Perubahan pada preset bawaan akan hilang.')) return;
+  if (!confirm(t('Kembalikan semua preset bawaan ke nilai awal? Perubahan pada preset bawaan akan hilang.'))) return;
   state.presets = resetBuiltins(state.presets);
   persistPresets();
   renderAll();
@@ -452,14 +551,17 @@ function persistTable() {
 }
 
 function renderDataSummary() {
+  renderBackupReminder();
+  renderGroupOptions(); // daftar kelompok cetak ikut data terbaru
   const { columns, rows } = state.table;
   const on = rows.filter((r) => r.on).length;
   const labels = printItems().length;
   const n = (v) => v.toLocaleString('id-ID');
   if (columns.length) {
-    $('#data-summary').innerHTML = `<b>${n(rows.length)}</b> baris · <b>${n(on)}</b> dicentang · <b>${n(labels)}</b> label akan dicetak`;
-    $('#data-info').textContent = `${n(rows.length)} baris · ${n(on)} dicentang · ${n(labels)} label`;
-    $('#meta-data').textContent = `${n(rows.length)} baris`;
+    const rowsWord = unit(rows.length, 'baris');
+    $('#data-summary').innerHTML = `<b>${n(rows.length)}</b> ${rowsWord} · <b>${n(on)}</b> ${t('dicentang')} · <b>${n(labels)}</b> ${unit(labels, 'label')} ${t('akan dicetak')}`;
+    $('#data-info').textContent = `${n(rows.length)} ${rowsWord} · ${n(on)} ${t('dicentang')} · ${n(labels)} ${unit(labels, 'label')}`;
+    $('#meta-data').textContent = `${n(rows.length)} ${rowsWord}`;
   } else {
     $('#data-summary').textContent = 'Belum ada data.';
     $('#data-info').textContent = '';
@@ -492,7 +594,7 @@ function setTable(table, message, undoLabel = 'import data') {
 }
 
 function importText(text, source) {
-  if (state.table.rows.length && !confirm('Data yang ada sekarang akan diganti. Lanjutkan?')) return;
+  if (state.table.rows.length && !confirm(t('Data yang ada sekarang akan diganti. Lanjutkan?'))) return;
   try {
     const { columns, rows, delimiter } = parseTable(text);
     const sep = { ',': 'koma', ';': 'titik koma', '\t': 'tab', '|': 'garis tegak' }[delimiter] ?? delimiter;
@@ -503,7 +605,7 @@ function importText(text, source) {
 }
 
 async function importExcel(file) {
-  if (state.table.rows.length && !confirm('Data yang ada sekarang akan diganti. Lanjutkan?')) return;
+  if (state.table.rows.length && !confirm(t('Data yang ada sekarang akan diganti. Lanjutkan?'))) return;
   try {
     const { columns, rows, sheet, sheetCount } = parseWorkbook(await file.arrayBuffer());
     const from = sheetCount > 1 ? ` (sheet "${sheet}")` : '';
@@ -560,7 +662,7 @@ function sortTable(col) {
 }
 
 $('#btn-data-clear').addEventListener('click', () => {
-  if (!state.table.columns.length || !confirm('Hapus semua data?')) return;
+  if (!state.table.columns.length || !confirm(t('Hapus semua data?'))) return;
   setTable({ columns: [], rows: [] }, 'Data dikosongkan. Klik Urungkan untuk mengembalikan.', 'kosongkan data');
 });
 
@@ -576,7 +678,7 @@ $('#btn-row-add').addEventListener('click', () => {
 });
 
 $('#btn-col-add').addEventListener('click', () => {
-  const name = prompt('Nama kolom baru (mis. nama, alamat, telepon, jumlah):');
+  const name = prompt(t('Nama kolom baru (mis. nama, alamat, telepon, jumlah):'));
   if (name == null) return;
   snapshot('tambah kolom');
   addColumn(state.table, name);
@@ -615,6 +717,7 @@ function showTab(tab) {
   $('#view-data').hidden = tab !== 'data';
   $('#preview-controls').hidden = tab !== 'preview';
   if (tab === 'preview') renderPreview();
+  syncLineToolbar();
 }
 
 for (const btn of document.querySelectorAll('.tab[data-tab]')) {
@@ -625,7 +728,7 @@ for (const btn of document.querySelectorAll('.tab[data-tab]')) {
 
 function prepareData(p) {
   const items = printItems();
-  const pages = paginate(items, labelsPerSheet(p), startSlot(p));
+  const pages = printPages(p);
   const order = new Map(state.table.rows.map((r, i) => [r, i + 1]));
   const renderer = createLabelRenderer(currentTemplate(), p, state.table.columns, items, { rowNo: (r) => order.get(r) ?? '' });
   return { pages, renderer };
@@ -652,6 +755,13 @@ function decorateSlots(p, cal, pages, sheets) {
       const used = i === 0 && slot < start;
       const el = placeLabel(sheet, p, cal, slot, `label ${used ? 'label--used' : 'label--empty'}`);
       el.textContent = used ? 'terpakai' : 'kosong';
+    }
+    // nama kelompok di pojok lembar (hanya di layar)
+    if (pages[i].group != null) {
+      const tag = document.createElement('div');
+      tag.className = 'sheet-group-tag';
+      tag.textContent = `${t('Kelompok')}: ${pages[i].group}`;
+      sheet.append(tag);
     }
     if (i !== 0) return;
     for (const el of sheet.querySelectorAll('.label')) el.classList.add('label--slot');
@@ -751,15 +861,24 @@ function renderPreview() {
   sheet.classList.add('sheet--preview');
   addPaperOutline(sheet, p);
   markSearchHits(sheet);
-  const wPx = page.pageW * MM_TO_PX;
-  const hPx = page.pageH * MM_TO_PX;
+  const landscape = isLandscape();
+  // kotak tampilan: landscape = lebar & tinggi kertas ditukar
+  const wPx = (landscape ? page.pageH : page.pageW) * MM_TO_PX;
+  const hPx = (landscape ? page.pageW : page.pageH) * MM_TO_PX;
   const scale = state.zoom === 'fit'
     ? Math.max(0.1, Math.min((area.clientWidth - 48) / wPx, (area.clientHeight - 48) / hPx))
     : Number(state.zoom);
-  sheet.style.transform = `scale(${scale})`;
+  sheet.style.transform = landscape
+    ? `translate(${wPx * scale}px, 0) rotate(90deg) scale(${scale})`
+    : `scale(${scale})`;
   state.previewScale = scale;
   const sel = getSelectedDecal();
   if (sel) for (const el of sheet.querySelectorAll(`.label-decal[data-decal="${sel}"]`)) el.classList.add('is-selected');
+  const selLine = getSelectedLine();
+  if (selLine != null) for (const el of sheet.querySelectorAll(`.label-line[data-line="${selLine}"]`)) el.classList.add('is-selected');
+  const selFree = getSelectedFree();
+  if (selFree) for (const el of sheet.querySelectorAll(`.label-free[data-free="${selFree}"]`)) el.classList.add('is-selected');
+  if (codeSelected) for (const el of sheet.querySelectorAll('.label-code')) el.classList.add('is-selected');
 
   const frame = document.createElement('div');
   frame.className = 'sheet-frame';
@@ -767,6 +886,7 @@ function renderPreview() {
   frame.style.height = `${hPx * scale}px`;
   frame.append(sheet);
   area.replaceChildren(frame);
+  syncLineToolbar();
 }
 
 /* ---------------- Geser gambar bebas (branding) di preview ---------------- */
@@ -779,9 +899,10 @@ function screenToContent(dxPx, dyPx) {
   const k = MM_TO_PX * (state.previewScale || 1);
   const dx = dxPx / k;
   const dy = dyPx / k;
-  const o = currentTemplate().orientation;
+  const o = screenRotation();
   if (o === 90) return { du: dy, dv: -dx };
   if (o === 270) return { du: -dy, dv: dx };
+  if (o === 180) return { du: -dx, dv: -dy };
   return { du: dx, dv: dy };
 }
 
@@ -793,6 +914,9 @@ $('#preview').addEventListener('pointerdown', (e) => {
   const id = el.dataset.decal;
   const d = currentTemplate().decals.find((x) => x.id === id);
   if (!d) return;
+  selectedSlot = el.closest('.label')?.dataset.slot ?? null;
+  selectLine(null);
+  selectCode(false);
   selectDecal(id);
   decalDrag = {
     id, resize: !!e.target.closest('.decal-handle'),
@@ -848,8 +972,621 @@ function endDecalDrag() {
 $('#preview').addEventListener('pointerup', endDecalDrag);
 $('#preview').addEventListener('pointercancel', endDecalDrag);
 
+/* ---------------- Geser baris teks di preview (dengan snap & garis bantu) ---------------- */
+
+const SNAP_PX = 7; // jarak tarik (px di layar) untuk menempel ke garis bantu
+let lineDrag = null;
+let selectedSlot = null; // label tempat baris dipilih (posisi toolbar mini)
+
+/** Baris terpilih di label yang terakhir diklik (atau label pertama) untuk menempatkan toolbar mini. */
+function selectedLineEl() {
+  const i = getSelectedLine();
+  if (i == null || state.tab !== 'preview') return null;
+  const sel = `.label-line[data-line="${i}"]`;
+  return $(`#preview .label[data-slot="${selectedSlot}"] ${sel}`) ?? $(`#preview ${sel}`);
+}
+
+document.addEventListener('lineselect', () => syncLineToolbar());
+
+/**
+ * Kotak tulisan sebuah baris dalam koordinat isi label (mm, sebelum diputar),
+ * diukur dari teks yang benar-benar tampil (bukan selebar kotak teks).
+ */
+function lineRect(el) {
+  const label = el.closest('.label');
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const r = range.getBoundingClientRect();
+  const L = label.getBoundingClientRect();
+  const k = MM_TO_PX * (state.previewScale || 1);
+  const box = contentBox(currentTemplate(), currentPreset());
+  const o = screenRotation();
+  const x = (r.left - L.left) / k;
+  const y = (r.top - L.top) / k;
+  const w = r.width / k;
+  const h = r.height / k;
+  if (o === 90) return { u: y, v: box.h - (x + w), w: h, h: w };
+  if (o === 270) return { u: box.w - (y + h), v: x, w: h, h: w };
+  if (o === 180) return { u: box.w - (x + w), v: box.h - (y + h), w, h };
+  return { u: x, v: y, w, h };
+}
+
+/** Snap di satu sumbu: target terdekat untuk tepi awal/tengah/akhir tulisan, atau null. */
+function snapAxis(start, size, targets, threshold) {
+  let best = null;
+  for (const f of [0, 0.5, 1]) {
+    const pos = start + size * f;
+    for (const t of targets) {
+      const dist = Math.abs(t.at - pos);
+      if (dist <= threshold && (!best || dist < best.dist - 1e-6)) best = { dist, shift: t.at - pos, at: t.at, kind: t.kind };
+    }
+  }
+  return best;
+}
+
+function drawGuides(content, guides) {
+  for (const g of content.querySelectorAll('.snap-guide')) g.remove();
+  for (const g of guides) {
+    const el = document.createElement('div');
+    el.className = `snap-guide snap-guide--${g.axis}${g.kind === 'center' ? ' snap-guide--center' : ''}`;
+    if (g.axis === 'u') el.style.left = `${g.at}mm`;
+    else el.style.top = `${g.at}mm`;
+    content.append(el);
+  }
+}
+
+/** Perbarui semua label di lembar ini secara langsung (tanpa render ulang) agar halus. */
+function setLineOffset(i, dx, dy) {
+  for (const el of document.querySelectorAll(`#preview .label-line[data-line="${i}"]`)) {
+    el.style.left = `${dx}mm`;
+    el.style.top = `${dy}mm`;
+    el.parentElement.classList.add('label-text--moved');
+  }
+}
+
+$('#preview').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.sheet--preview .label-line');
+  if (!el || e.button !== 0 || e.target.closest('.label-decal')) return;
+  const i = Number(el.dataset.line);
+  const l = currentTemplate().lines[i];
+  if (!l) return;
+  e.preventDefault();
+  selectedSlot = el.closest('.label')?.dataset.slot ?? null;
+  selectLine(i);
+  selectDecal(null);
+  selectCode(false);
+  const content = el.closest('.label-content');
+  const cur = lineRect(el);
+  const natural = { ...cur, u: cur.u - l.dx, v: cur.v - l.dy };
+  const { box, text } = labelGeometry(currentTemplate(), currentPreset());
+  // garis bantu: tengah & tepi isi label, tepi kotak teks, serta tepi/tengah baris lain di label yang sama
+  const targets = { u: [], v: [] };
+  const add = (axis, at, kind) => targets[axis].push({ at, kind });
+  add('u', box.w / 2, 'center');
+  add('v', box.h / 2, 'center');
+  for (const at of [box.pad, box.w - box.pad, text.u, text.u + text.w]) add('u', at, 'edge');
+  for (const at of [box.pad, box.h - box.pad, text.v, text.v + text.h]) add('v', at, 'edge');
+  for (const other of content.querySelectorAll('.label-line')) {
+    if (other === el || !other.textContent.trim()) continue;
+    const r = lineRect(other);
+    for (const at of [r.u, r.u + r.w / 2, r.u + r.w]) add('u', at, 'line');
+    for (const at of [r.v, r.v + r.h / 2, r.v + r.h]) add('v', at, 'line');
+  }
+  lineDrag = { i, el, content, sx: e.clientX, sy: e.clientY, dx: l.dx, dy: l.dy, natural, box, targets, moved: false };
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    // event sintetis tanpa pointer aktif
+  }
+});
+
+$('#preview').addEventListener('pointermove', (e) => {
+  if (!lineDrag) return;
+  const d = lineDrag;
+  if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return; // masih klik biasa
+  if (!d.moved) {
+    d.moved = true;
+    document.body.classList.add('is-dragging');
+    d.el.classList.add('is-dragging-line');
+  }
+  const { du, dv } = screenToContent(e.clientX - d.sx, e.clientY - d.sy);
+  const n = d.natural;
+  let dx = d.dx + du;
+  let dy = d.dy + dv;
+  const guides = [];
+  if (e.altKey) {
+    dx = Math.round(dx * 10) / 10; // tanpa snap: per 0,1 mm
+    dy = Math.round(dy * 10) / 10;
+  } else {
+    const thr = SNAP_PX / (MM_TO_PX * (state.previewScale || 1));
+    const su = snapAxis(n.u + dx, n.w, d.targets.u, thr);
+    const sv = snapAxis(n.v + dy, n.h, d.targets.v, thr);
+    if (su) {
+      dx += su.shift;
+      guides.push({ axis: 'u', at: su.at, kind: su.kind });
+    } else {
+      dx = Math.abs(dx) <= thr ? 0 : Math.round(dx * 2) / 2; // posisi semula juga "menempel"; selain itu per 0,5 mm
+    }
+    if (sv) {
+      dy += sv.shift;
+      guides.push({ axis: 'v', at: sv.at, kind: sv.kind });
+    } else {
+      dy = Math.abs(dy) <= thr ? 0 : Math.round(dy * 2) / 2;
+    }
+  }
+  // tulisan dijaga tetap di dalam label
+  dx = Math.min(Math.max(dx, -n.u), d.box.w - n.u - n.w);
+  dy = Math.min(Math.max(dy, -n.v), d.box.h - n.v - n.h);
+  d.next = { dx: Math.round(dx * 10) / 10, dy: Math.round(dy * 10) / 10 }; // sama dengan yang disimpan
+  setLineOffset(d.i, d.next.dx, d.next.dy);
+  drawGuides(d.content, guides);
+  showDragInfo(e, d.next);
+});
+
+/** Keterangan kecil di dekat kursor: geseran X/Y saat ini. */
+function showDragInfo(e, info) {
+  let tip = $('#drag-info');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'drag-info';
+    document.body.append(tip);
+  }
+  const f = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString('id-ID', { maximumFractionDigits: 1 })}`;
+  tip.textContent = typeof info === 'string' ? info : `X ${f(info.dx)} · Y ${f(info.dy)} mm`;
+  tip.style.left = `${e.clientX + 14}px`;
+  tip.style.top = `${e.clientY + 16}px`;
+  tip.hidden = false;
+}
+
+function hideDragInfo() {
+  const tip = $('#drag-info');
+  if (tip) tip.hidden = true;
+}
+
+function endLineDrag() {
+  if (!lineDrag) return;
+  const { i, next, moved, content, el } = lineDrag;
+  lineDrag = null;
+  document.body.classList.remove('is-dragging');
+  el.classList.remove('is-dragging-line');
+  drawGuides(content, []);
+  hideDragInfo();
+  if (moved) {
+    suppressClick = true; // jangan anggap sebagai klik "mulai dari label ke-"
+    setTimeout(() => { suppressClick = false; }, 0);
+    if (next) updateLineOffset(i, next);
+  }
+}
+$('#preview').addEventListener('pointerup', endLineDrag);
+$('#preview').addEventListener('pointercancel', endLineDrag);
+
+/* ---------------- Geser & ubah ukuran barcode/QR di preview ---------------- */
+
+let codeDrag = null;
+let codeSelected = false;
+
+function selectCode(on) {
+  // satu objek terpilih dalam satu waktu
+  if (on && getSelectedDecal()) selectDecal(null);
+  if (on && (getSelectedLine() != null || getSelectedFree())) selectLine(null);
+  codeSelected = on;
+  for (const el of document.querySelectorAll('#preview .label-code')) el.classList.toggle('is-selected', on);
+  syncLineToolbar();
+}
+
+/** Garis bantu untuk barcode/QR: tengah & tepi label, tepi area teks, dan tepi/tengah baris teks. */
+function snapTargets(content, box, text, skip) {
+  const targets = { u: [], v: [] };
+  const add = (axis, at, kind) => targets[axis].push({ at, kind });
+  add('u', box.w / 2, 'center');
+  add('v', box.h / 2, 'center');
+  for (const at of [box.pad, box.w - box.pad, text.u, text.u + text.w]) add('u', at, 'edge');
+  for (const at of [box.pad, box.h - box.pad, text.v, text.v + text.h]) add('v', at, 'edge');
+  for (const other of content.querySelectorAll('.label-line')) {
+    if (other === skip || !other.textContent.trim()) continue;
+    const r = lineRect(other);
+    for (const at of [r.u, r.u + r.w / 2, r.u + r.w]) add('u', at, 'line');
+    for (const at of [r.v, r.v + r.h / 2, r.v + r.h]) add('v', at, 'line');
+  }
+  return targets;
+}
+
+/** Terapkan posisi/ukuran ke semua barcode/QR di lembar ini secara langsung (tanpa render ulang). */
+function setCodeRect(r) {
+  for (const el of document.querySelectorAll('#preview .label-code')) {
+    Object.assign(el.style, { left: `${r.x}mm`, top: `${r.y}mm`, width: `${r.w}mm`, height: `${r.h}mm` });
+    const bars = el.querySelector('.code-bars');
+    const caption = el.querySelector('.code-caption');
+    if (bars && caption) {
+      const cap = barcodeCaption({ h: r.h });
+      bars.style.height = `${r.h - cap.height}mm`;
+      caption.style.fontSize = `${cap.font}mm`;
+      caption.style.height = `${cap.height}mm`;
+    }
+  }
+}
+
+$('#preview').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.sheet--preview .label-code');
+  if (!el || e.button !== 0 || e.target.closest('.label-decal')) return;
+  const tpl = currentTemplate();
+  const { box, text, code } = labelGeometry(tpl, currentPreset());
+  if (!code) return;
+  e.preventDefault();
+  e.stopPropagation();
+  selectLine(null);
+  selectDecal(null);
+  selectCode(true);
+  const content = el.closest('.label-content');
+  codeDrag = {
+    el, content, box,
+    resize: !!e.target.closest('.code-handle'),
+    square: tpl.code.type === 'qr',
+    sx: e.clientX, sy: e.clientY,
+    start: { x: code.u, y: code.v, w: code.w, h: code.h },
+    targets: snapTargets(content, box, text, null),
+    moved: false,
+  };
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    // event sintetis tanpa pointer aktif
+  }
+});
+
+$('#preview').addEventListener('pointermove', (e) => {
+  if (!codeDrag) return;
+  const d = codeDrag;
+  if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
+  if (!d.moved) {
+    d.moved = true;
+    document.body.classList.add('is-dragging');
+  }
+  const { du, dv } = screenToContent(e.clientX - d.sx, e.clientY - d.sy);
+  const { start: s, box } = d;
+  const snapHalf = (n) => (e.altKey ? Math.round(n * 10) / 10 : Math.round(n * 2) / 2);
+  const guides = [];
+  let next;
+  if (d.resize) {
+    if (d.square) {
+      const max = Math.min(box.w - s.x, box.h - s.y);
+      const side = Math.min(max, Math.max(4, snapHalf(s.w + (du + dv) / 2)));
+      next = { x: s.x, y: s.y, w: side, h: side };
+    } else {
+      next = {
+        x: s.x, y: s.y,
+        w: Math.min(box.w - s.x, Math.max(6, snapHalf(s.w + du))),
+        h: Math.min(box.h - s.y, Math.max(3, snapHalf(s.h + dv))),
+      };
+    }
+  } else {
+    let x = s.x + du;
+    let y = s.y + dv;
+    const thr = SNAP_PX / (MM_TO_PX * (state.previewScale || 1));
+    const su = e.altKey ? null : snapAxis(x, s.w, d.targets.u, thr);
+    const sv = e.altKey ? null : snapAxis(y, s.h, d.targets.v, thr);
+    if (su) {
+      x += su.shift;
+      guides.push({ axis: 'u', at: su.at, kind: su.kind });
+    } else x = snapHalf(x);
+    if (sv) {
+      y += sv.shift;
+      guides.push({ axis: 'v', at: sv.at, kind: sv.kind });
+    } else y = snapHalf(y);
+    const clamp = (v, max) => Math.min(Math.max(0, v), Math.max(0, max));
+    next = { x: clamp(x, box.w - s.w), y: clamp(y, box.h - s.h), w: s.w, h: s.h };
+  }
+  d.next = Object.fromEntries(Object.entries(next).map(([k, v]) => [k, Math.round(v * 10) / 10]));
+  setCodeRect(d.next);
+  drawGuides(d.content, guides);
+  const f = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: 1 });
+  showDragInfo(e, d.resize
+    ? (d.square ? `${f(d.next.w)} × ${f(d.next.h)} mm` : `L ${f(d.next.w)} · T ${f(d.next.h)} mm`)
+    : `X ${f(d.next.x)} · Y ${f(d.next.y)} mm`);
+});
+
+function endCodeDrag() {
+  if (!codeDrag) return;
+  const { next, moved, content } = codeDrag;
+  codeDrag = null;
+  document.body.classList.remove('is-dragging');
+  drawGuides(content, []);
+  hideDragInfo();
+  if (moved) {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 0);
+    // digeser = posisi bebas; teks kembali memakai seluruh area label
+    if (next) updateCode({ free: true, ...next });
+  }
+}
+$('#preview').addEventListener('pointerup', endCodeDrag);
+$('#preview').addEventListener('pointercancel', endCodeDrag);
+
+/* ---------------- Teks bebas di preview: pilih, seret (snap), panah ---------------- */
+
+/** Tambah teks bebas dari toolbar atas (text null = teks baru): tampil di label pertama, siap diketik. */
+function addTextFromToolbar(text) {
+  selectedSlot = null; // toolbar mini muncul di label pertama
+  addFreeText(text, { focusPanel: false });
+  if (text == null) focusToolbarText();
+}
+
+const textMenu = $('#tb-text-menu');
+const renderTextMenu = () => {
+  textMenu.innerHTML = quickTexts(lang).map((q) => `<button type="button" role="menuitem" data-text="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('');
+};
+renderTextMenu();
+document.addEventListener('langchange', renderTextMenu);
+function toggleTextMenu(open) {
+  textMenu.hidden = !open;
+  $('#tb-text-more').setAttribute('aria-expanded', String(open));
+}
+$('#tb-text-add').addEventListener('click', () => addTextFromToolbar(null));
+$('#tb-text-more').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleTextMenu(textMenu.hidden);
+});
+textMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-text]');
+  if (!b) return;
+  toggleTextMenu(false);
+  addTextFromToolbar(b.dataset.text);
+});
+document.addEventListener('click', (e) => {
+  if (!textMenu.hidden && !e.target.closest('#tb-text')) toggleTextMenu(false);
+});
+
+/* ---------------- Atur objek: rata di label, hapus, duplikat (toolbar mini & keyboard) ---------------- */
+
+/** Elemen objek terpilih di label yang terakhir diklik (atau label pertama). */
+function selectedObjectEl(sel) {
+  if (state.tab !== 'preview') return null;
+  return $(`#preview .label[data-slot="${selectedSlot}"] ${sel}`) ?? $(`#preview ${sel}`);
+}
+
+/**
+ * Ratakan objek terpilih terhadap area isi label (di dalam padding):
+ * left/hcenter/right (horizontal), top/vcenter/bottom (vertikal).
+ */
+function arrangeSelected(where) {
+  const tpl = currentTemplate();
+  const box = contentBox(tpl, currentPreset());
+  const i = getSelectedLine();
+  const free = getFreeText(getSelectedFree());
+  const d = getDecal(getSelectedDecal());
+  const code = codeSelected ? labelGeometry(tpl, currentPreset()).code : null;
+  let r;
+  if (i != null) r = selectedLineEl() && lineRect(selectedLineEl());
+  else if (free) r = selectedFreeEl() && lineRect(selectedFreeEl());
+  else if (d) r = { u: d.x, v: d.y, w: d.width, h: decalHeight(d) };
+  else if (code) r = code;
+  if (!r) return;
+  let du = 0;
+  let dv = 0;
+  if (where === 'left') du = box.pad - r.u;
+  else if (where === 'hcenter') du = (box.w - r.w) / 2 - r.u;
+  else if (where === 'right') du = box.w - box.pad - r.w - r.u;
+  else if (where === 'top') dv = box.pad - r.v;
+  else if (where === 'vcenter') dv = (box.h - r.h) / 2 - r.v;
+  else if (where === 'bottom') dv = box.h - box.pad - r.h - r.v;
+  if (i != null) {
+    const l = tpl.lines[i];
+    updateLineOffset(i, { dx: l.dx + du, dy: l.dy + dv });
+  } else if (free) updateFreeText(free.id, { x: free.x + du, y: free.y + dv });
+  else if (d) updateDecal(d.id, { x: d.x + du, y: d.y + dv });
+  else if (code) updateCode({ free: true, x: code.u + du, y: code.v + dv, w: code.w, h: code.h });
+}
+
+// Delete/Backspace = hapus, Ctrl+D = duplikat, panah = geser gambar (teks & QR punya handler sendiri)
+document.addEventListener('keydown', (e) => {
+  if (state.tab !== 'preview' || e.altKey || e.metaKey) return;
+  if (e.target.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  const free = getFreeText(getSelectedFree());
+  const d = getDecal(getSelectedDecal());
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (free) removeFreeText(free.id);
+    else if (d) removeDecal(d.id);
+    else if (codeSelected) {
+      selectCode(false);
+      updateCode({ type: 'none' });
+    } else return;
+    e.preventDefault();
+    toast(t('Objek dihapus. Ctrl+Z untuk mengurungkan.'));
+  } else if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+    if (!free && !d) return;
+    e.preventDefault();
+    if (free) duplicateFreeText(free.id);
+    else duplicateDecal(d.id);
+  } else if (d && !e.ctrlKey) {
+    if (e.key === 'Escape') return selectDecal(null);
+    const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const step = e.shiftKey ? 2 : 0.5;
+    const k = MM_TO_PX * (state.previewScale || 1);
+    const { du, dv } = screenToContent(dir[0] * step * k, dir[1] * step * k);
+    updateDecal(d.id, { x: Math.round((d.x + du) * 10) / 10, y: Math.round((d.y + dv) * 10) / 10 });
+  }
+}, true);
+
+/* ---------------- Toolbar: Urungkan/Ulangi desain, sisipkan gambar & QR ---------------- */
+
+function syncHistoryButtons({ canUndo, canRedo } = historyState()) {
+  $('#tb-undo').disabled = !canUndo;
+  $('#tb-redo').disabled = !canRedo;
+}
+document.addEventListener('templatehistory', (e) => syncHistoryButtons(e.detail));
+const undoDesign = () => { if (!undoTemplate()) toast(t('Tidak ada yang bisa diurungkan.')); };
+const redoDesign = () => { if (!redoTemplate()) toast(t('Tidak ada yang bisa diulangi.')); };
+$('#tb-undo').addEventListener('click', undoDesign);
+$('#tb-redo').addEventListener('click', redoDesign);
+
+// Ctrl+Z / Ctrl+Y (atau Ctrl+Shift+Z) di tab Preview: urungkan/ulangi perubahan desain label.
+// Di dalam kotak isian, biarkan urungkan bawaan browser (ketikan).
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || state.tab !== 'preview') return;
+  if (e.target.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undoDesign();
+  } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
+    e.preventDefault();
+    redoDesign();
+  }
+});
+
+$('#tb-image').addEventListener('click', () => $('#dc-file').click());
+
+$('#tb-qr').addEventListener('click', () => {
+  const tpl = currentTemplate();
+  if (tpl.code.type !== 'qr') document.querySelector('#tpl-code-type [data-value="qr"]').click();
+  if (!currentTemplate().code.column && currentTemplate().code.source !== 'text') {
+    return toast(t('Import data dulu, atau isi QR lewat Teks / rumus di bagian Barcode / QR code.'), 'error');
+  }
+  selectLine(null);
+  selectCode(true);
+  toast(t('QR code di label. Seret untuk memindahkan, tarik titik ungu di pojoknya untuk mengubah ukuran.'));
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !textMenu.hidden) toggleTextMenu(false);
+});
+
+let freeDrag = null;
+
+/** Elemen teks bebas terpilih di label yang terakhir diklik (atau label pertama). */
+function selectedFreeEl() {
+  const id = getSelectedFree();
+  if (!id || state.tab !== 'preview') return null;
+  const sel = `.label-free[data-free="${id}"]`;
+  return $(`#preview .label[data-slot="${selectedSlot}"] ${sel}`) ?? $(`#preview ${sel}`);
+}
+
+$('#preview').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.sheet--preview .label-free');
+  if (!el || e.button !== 0 || e.target.closest('.label-decal')) return;
+  const t = getFreeText(el.dataset.free);
+  if (!t) return;
+  e.preventDefault();
+  e.stopPropagation();
+  selectedSlot = el.closest('.label')?.dataset.slot ?? null;
+  selectDecal(null);
+  selectCode(false);
+  selectFree(t.id);
+  const content = el.closest('.label-content');
+  const cur = lineRect(el);
+  const { box, text } = labelGeometry(currentTemplate(), currentPreset());
+  freeDrag = {
+    id: t.id, el, content, box, sx: e.clientX, sy: e.clientY,
+    start: { x: t.x, y: t.y }, rect: cur, targets: snapTargets(content, box, text, null), moved: false,
+  };
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    // event sintetis tanpa pointer aktif
+  }
+});
+
+$('#preview').addEventListener('pointermove', (e) => {
+  if (!freeDrag) return;
+  const d = freeDrag;
+  if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
+  if (!d.moved) {
+    d.moved = true;
+    document.body.classList.add('is-dragging');
+  }
+  const { du, dv } = screenToContent(e.clientX - d.sx, e.clientY - d.sy);
+  const r = d.rect;
+  let x = d.start.x + du;
+  let y = d.start.y + dv;
+  const guides = [];
+  const thr = SNAP_PX / (MM_TO_PX * (state.previewScale || 1));
+  // snap memakai kotak tulisan yang tampil (r), digeser sejauh perpindahan x/y
+  const su = e.altKey ? null : snapAxis(r.u + (x - d.start.x), r.w, d.targets.u, thr);
+  const sv = e.altKey ? null : snapAxis(r.v + (y - d.start.y), r.h, d.targets.v, thr);
+  const step = (n) => (e.altKey ? Math.round(n * 10) / 10 : Math.round(n * 2) / 2);
+  if (su) {
+    x += su.shift;
+    guides.push({ axis: 'u', at: su.at, kind: su.kind });
+  } else x = step(x);
+  if (sv) {
+    y += sv.shift;
+    guides.push({ axis: 'v', at: sv.at, kind: sv.kind });
+  } else y = step(y);
+  // tetap di dalam label
+  x = Math.min(Math.max(x, d.start.x - r.u), d.start.x + (d.box.w - r.u - r.w));
+  y = Math.min(Math.max(y, d.start.y - r.v), d.start.y + (d.box.h - r.v - r.h));
+  d.next = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  for (const el of document.querySelectorAll(`#preview .label-free[data-free="${d.id}"]`)) {
+    el.style.left = `${d.next.x}mm`;
+    el.style.top = `${d.next.y}mm`;
+  }
+  drawGuides(d.content, guides);
+  const f = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: 1 });
+  showDragInfo(e, `X ${f(d.next.x)} · Y ${f(d.next.y)} mm`);
+});
+
+function endFreeDrag() {
+  if (!freeDrag) return;
+  const { id, next, moved, content } = freeDrag;
+  freeDrag = null;
+  document.body.classList.remove('is-dragging');
+  drawGuides(content, []);
+  hideDragInfo();
+  if (moved) {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 0);
+    if (next) updateFreeText(id, next);
+  }
+}
+$('#preview').addEventListener('pointerup', endFreeDrag);
+$('#preview').addEventListener('pointercancel', endFreeDrag);
+
+// Barcode/QR terpilih: panah menggeser (0,5 mm; Shift 2 mm; Ctrl 0,1 mm), Esc batal pilih.
+document.addEventListener('keydown', (e) => {
+  if (!codeSelected || state.tab !== 'preview' || e.altKey || e.metaKey) return;
+  if (e.target.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  if (e.key === 'Escape') return selectCode(false);
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  const tpl = currentTemplate();
+  const { box, code } = labelGeometry(tpl, currentPreset());
+  if (!dir || !code) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const step = e.shiftKey ? 2 : e.ctrlKey ? 0.1 : 0.5;
+  const k = MM_TO_PX * (state.previewScale || 1);
+  const { du, dv } = screenToContent(dir[0] * step * k, dir[1] * step * k);
+  const clamp = (v, max) => Math.min(Math.max(0, v), Math.max(0, max));
+  updateCode({ free: true, x: clamp(code.u + du, box.w - code.w), y: clamp(code.v + dv, box.h - code.h), w: code.w, h: code.h });
+}, true);
+
+// Baris terpilih: panah menggeser 0,5 mm (Shift 2 mm, Ctrl 0,1 mm), Esc batal pilih.
+// Fase capture agar didahulukan dari navigasi lembar ← →.
+document.addEventListener('keydown', (e) => {
+  const i = getSelectedLine();
+  const free = getFreeText(getSelectedFree());
+  if ((i == null && !free) || state.tab !== 'preview' || e.altKey || e.metaKey) return;
+  if (e.target.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+  if (e.key === 'Escape') return selectLine(null);
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  const l = currentTemplate().lines[i];
+  if (!dir || (!l && !free)) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const step = e.shiftKey ? 2 : e.ctrlKey ? 0.1 : 0.5;
+  const k = MM_TO_PX * (state.previewScale || 1);
+  const { du, dv } = screenToContent(dir[0] * step * k, dir[1] * step * k); // arah panah = arah di layar
+  if (free) updateFreeText(free.id, { x: free.x + du, y: free.y + dv });
+  else updateLineOffset(i, { dx: l.dx + du, dy: l.dy + dv });
+}, true);
+
 $('#preview').addEventListener('click', (e) => {
   if (suppressClick || e.target.closest('.label-decal')) return;
+  if (e.target.closest('.label-line, .label-code, .label-free')) return; // klik tulisan/kode = pilih untuk digeser
+  if (getSelectedLine() != null || getSelectedFree()) selectLine(null);
+  if (codeSelected) selectCode(false);
+  if (getSelectedDecal()) selectDecal(null);
   const el = e.target.closest('.label--slot');
   if (!el || state.previewMode !== 'data' || state.page !== 0) return;
   state.settings.startSlot = Number(el.dataset.slot);
@@ -893,7 +1630,7 @@ function findHits(q) {
   const needle = q.trim().toLowerCase();
   if (!needle) return [];
   const cols = state.table.columns;
-  const pages = paginate(printItems(), labelsPerSheet(p), startSlot(p));
+  const pages = printPages(p);
   const hits = [];
   const seen = new Map(); // baris yang sama (jumlah/salinan) dicek sekali
   pages.forEach((items, page) => {
@@ -951,6 +1688,7 @@ function renderSearchInfo() {
   btn.classList.toggle('primary', hitHere);
   btn.classList.toggle('ghost', !hitHere);
   $('#btn-print-page-text').textContent = hitHere ? `Cetak lembar ${state.page + 1}` : 'Cetak lembar ini';
+  $('#btn-print-page').title = hitHere ? `Cetak hanya lembar ${state.page + 1}` : 'Cetak hanya lembar yang sedang ditampilkan';
 }
 
 function markSearchHits(sheet) {
@@ -980,6 +1718,37 @@ $('#pv-search').addEventListener('keydown', (e) => {
 });
 $('#pv-search-prev').addEventListener('click', () => stepSearch(-1));
 $('#pv-search-next').addEventListener('click', () => stepSearch(1));
+
+// Layar kecil: ikon 🔍 membuka kotak cari melayang; tertutup lagi bila kosong & tidak dipakai
+const searchWrap = $('#pv-search-wrap');
+function openSearch() {
+  searchWrap.classList.add('is-open');
+  $('#pv-search').focus();
+  $('#pv-search').select();
+}
+$('#pv-search-toggle').addEventListener('click', () => {
+  if (searchWrap.classList.contains('is-open') && !$('#pv-search').value) searchWrap.classList.remove('is-open');
+  else openSearch();
+});
+searchWrap.addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (!searchWrap.contains(document.activeElement) && !$('#pv-search').value) searchWrap.classList.remove('is-open');
+  }, 150);
+});
+$('#pv-search').addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  e.target.value = '';
+  runSearch('');
+  searchWrap.classList.remove('is-open');
+  e.target.blur();
+});
+// Ctrl+F di tab Preview: cari di label (bukan cari bawaan browser)
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && state.tab === 'preview' && state.previewMode === 'data') {
+    e.preventDefault();
+    openSearch();
+  }
+});
 
 // ← → / Home / End untuk berpindah lembar di preview
 document.addEventListener('keydown', (e) => {
@@ -1102,6 +1871,7 @@ $('#opt-border').addEventListener('change', (e) => {
 /* ---------------- Opsi cetak ---------------- */
 
 function renderPrintOptions() {
+  renderGroupOptions();
   const p = currentPreset();
   $('#opt-start').value = startSlot(p) + 1;
   $('#opt-start').max = labelsPerSheet(p);
@@ -1146,9 +1916,11 @@ function renderMedia() {
   for (const [id, val] of [['#media-ax', m.alignX], ['#media-ay', m.alignY]]) {
     for (const b of $(id).querySelectorAll('[data-value]')) b.classList.toggle('active', b.dataset.value === val);
   }
-  $('#media-info').innerHTML = m.mode === 'label'
+  for (const b of $('#paper-orient').querySelectorAll('[data-value]')) b.classList.toggle('active', b.dataset.value === m.orientation);
+  $('#media-info').innerHTML = (m.mode === 'label'
     ? `Halaman cetak = lembar label: <b>${pageSizeName(page)}</b>`
-    : `Halaman cetak: <b>${pageSizeName(page)}</b> · lembar label digeser X <b>${fmt(page.dx)}</b> mm, Y <b>${fmt(page.dy)}</b> mm`;
+    : `Halaman cetak: <b>${pageSizeName(page)}</b> · lembar label digeser X <b>${fmt(page.dx)}</b> mm, Y <b>${fmt(page.dy)}</b> mm`)
+    + (m.orientation === 'landscape' ? ' · tampilan <b>landscape</b> (hanya di layar; cetak tetap sama)' : '');
   $('#meta-print').textContent = [
     m.mode === 'label' ? '' : pageSizeName(page).split(' ')[0],
     $('#meta-print').dataset.offset ?? '',
@@ -1164,6 +1936,12 @@ function updateMedia(change) {
 }
 
 $('#media-mode').addEventListener('change', (e) => updateMedia({ mode: e.target.value }));
+$('#paper-orient').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-value]');
+  if (!b || b.dataset.value === mediaFor(currentPreset()).orientation) return;
+  updateMedia({ orientation: b.dataset.value });
+  if (b.dataset.value === 'landscape') toast('Tampilan landscape. Hasil cetak tetap sama; kertas dimasukkan ke printer seperti biasa.');
+});
 for (const [id, key] of [['#media-w', 'width'], ['#media-h', 'height']]) {
   $(id).addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
@@ -1179,28 +1957,60 @@ for (const [id, key] of [['#media-ax', 'alignX'], ['#media-ay', 'alignY']]) {
 
 /* ---------------- Backup ---------------- */
 
-function downloadBackup() {
-  const data = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key.startsWith('cetakLabel.')) data[key] = localStorage.getItem(key);
-  }
+async function downloadBackup() {
+  const data = rawEntries(); // format sama dengan backup versi lama (kunci "cetakLabel.…")
+  const file = { app: 'cetak-label', backup: 1, data };
+  if ($('#backup-photos').checked && photoCount()) file.photos = await exportPhotos(); // { kunci: data URL }
   const date = new Date().toISOString().slice(0, 10);
-  downloadText(`backup-cetak-label-${date}.json`, JSON.stringify({ app: 'cetak-label', backup: 1, data }, null, 2), 'application/json');
+  downloadText(`backup-cetak-label-${date}.json`, JSON.stringify(file, null, file.photos ? 0 : 2), 'application/json');
+  save('backupInfo', { ...load('backupInfo', {}), last: Date.now() });
+  renderBackupReminder();
+}
+
+/* ---------------- Pengingat backup ---------------- */
+
+const BACKUP_EVERY_DAYS = 7;
+const BACKUP_SNOOZE_DAYS = 3;
+const DAY = 86400000;
+
+/** Pita pengingat: ada data, belum pernah/lebih dari 7 hari tidak di-backup, dan tidak sedang ditunda. */
+function renderBackupReminder() {
+  const info = load('backupInfo', {});
+  const now = Date.now();
+  const due = state.table.rows.length > 0
+    && (!info.last || now - info.last > BACKUP_EVERY_DAYS * DAY)
+    && !(info.snoozeUntil > now);
+  $('#backup-reminder').hidden = !due;
+  if (!due) return;
+  const days = info.last ? Math.floor((now - info.last) / DAY) : null;
+  $('#backup-reminder-when').textContent = days == null
+    ? t('Belum pernah di-backup — simpan salinan agar tidak hilang bila browser dibersihkan.')
+    : t(`Backup terakhir ${days} hari lalu.`);
+}
+$('#backup-reminder-go').addEventListener('click', downloadBackup);
+$('#backup-reminder-later').addEventListener('click', () => {
+  save('backupInfo', { ...load('backupInfo', {}), snoozeUntil: Date.now() + BACKUP_SNOOZE_DAYS * DAY });
+  renderBackupReminder();
+});
+
+function renderBackupPhotos() {
+  const n = photoCount();
+  $('#backup-photos-row').hidden = !n;
+  $('#backup-photos-count').textContent = `(${n.toLocaleString('id-ID')} ${t('foto')})`;
 }
 
 $('#btn-backup').addEventListener('click', downloadBackup);
 
 /* ---------------- Reset ---------------- */
 
-// Bagian yang bisa direset → kunci localStorage. Setelah dihapus, aplikasi dimuat ulang
+// Bagian yang bisa direset → kunci penyimpanan. Setelah dihapus, aplikasi dimuat ulang
 // sehingga nilai bawaan dipakai kembali.
 const RESET_KEYS = {
-  data: ['cetakLabel.data'],
-  templates: ['cetakLabel.templates'],
-  presets: ['cetakLabel.presets'],
-  settings: ['cetakLabel.settings'],
-  sections: ['cetakLabel.sections'],
+  data: ['data'],
+  templates: ['templates'],
+  presets: ['presets'],
+  settings: ['settings'],
+  sections: ['sections'],
 };
 
 function syncResetButton() {
@@ -1238,9 +2048,10 @@ $('#reset-dialog').addEventListener('close', async () => {
   const parts = [...document.querySelectorAll('[data-reset]:checked')].map((c) => c.dataset.reset);
   if (!parts.length) return;
   const names = parts.map((k) => $(`[data-reset="${k}"]`).closest('.reset-item').querySelector('b').textContent);
-  if (!confirm(`Yakin reset: ${names.join(', ')}?`)) return;
+  if (!confirm(t(`Yakin reset: ${names.join(', ')}?`))) return;
   try {
-    for (const part of parts) for (const key of RESET_KEYS[part] ?? []) localStorage.removeItem(key);
+    for (const part of parts) for (const key of RESET_KEYS[part] ?? []) remove(key);
+    await flush();
     if (parts.includes('photos')) await clearPhotos();
   } catch {
     // abaikan
@@ -1256,10 +2067,10 @@ $('#file-restore').addEventListener('change', async (e) => {
   try {
     const json = JSON.parse(await file.text());
     if (json?.app !== 'cetak-label' || !json.data) throw new Error('Bukan file backup Cetak Label.');
-    if (!confirm('Semua data, template, ukuran, dan pengaturan sekarang akan diganti dengan isi backup. Lanjutkan?')) return;
-    for (const [key, value] of Object.entries(json.data)) {
-      if (key.startsWith('cetakLabel.') && typeof value === 'string') localStorage.setItem(key, value);
-    }
+    if (!confirm(t('Semua data, template, ukuran, dan pengaturan sekarang akan diganti dengan isi backup. Lanjutkan?'))) return;
+    for (const [key, value] of Object.entries(json.data)) setRaw(key, value);
+    await flush();
+    if (json.photos) await importPhotos(json.photos);
     location.reload();
   } catch (err) {
     toast(`Gagal memulihkan: ${err.message}`, 'error');
@@ -1269,22 +2080,13 @@ $('#file-restore').addEventListener('change', async (e) => {
 /* ---------------- Panel bisa dilipat ---------------- */
 
 function mountSections() {
-  let saved = {};
-  try {
-    saved = JSON.parse(localStorage.getItem('cetakLabel.sections') || '{}');
-  } catch {
-    // abaikan
-  }
+  const saved = load('sections', {});
   for (const sec of document.querySelectorAll('.section')) {
     const key = sec.dataset.section;
     if (key in saved) sec.open = saved[key];
     sec.addEventListener('toggle', () => {
       saved[key] = sec.open;
-      try {
-        localStorage.setItem('cetakLabel.sections', JSON.stringify(saved));
-      } catch {
-        // abaikan
-      }
+      save('sections', saved);
     });
   }
 }
@@ -1303,7 +2105,60 @@ function renderAll() {
 if (!state.table.columns.length) state.previewMode = 'test';
 mountSections();
 $('#opt-border').checked = !!state.settings.printBorder;
+mountLineToolbar({
+  // teks yang sedang dipilih di preview: teks bebas atau baris template
+  target: () => {
+    const free = getFreeText(getSelectedFree());
+    if (free) {
+      return {
+        key: `free:${free.id}`, title: 'Teks bebas', style: free, free: true, anchor: selectedFreeEl(),
+        update: (patch) => updateFreeText(free.id, patch),
+        setText: (text) => updateFreeText(free.id, { text }),
+        remove: () => removeFreeText(free.id),
+        duplicate: () => duplicateFreeText(free.id),
+        arrange: (where) => arrangeSelected(where),
+      };
+    }
+    const i = getSelectedLine();
+    const l = i == null ? null : currentTemplate().lines[i];
+    if (l) {
+      return {
+        key: `line:${i}`, title: `Baris ${i + 1}`, style: l, free: false, anchor: selectedLineEl(),
+        update: (patch) => updateLineStyle(i, patch),
+        reset: () => updateLineOffset(i, { dx: 0, dy: 0 }),
+        arrange: (where) => arrangeSelected(where),
+      };
+    }
+    const d = getDecal(getSelectedDecal());
+    if (d) {
+      return {
+        key: `decal:${d.id}`, title: 'Gambar', object: true, anchor: selectedObjectEl(`.label-decal[data-decal="${d.id}"]`),
+        remove: () => removeDecal(d.id),
+        duplicate: () => duplicateDecal(d.id),
+        arrange: (where) => arrangeSelected(where),
+        layer: d.layer,
+        setLayer: (layer) => updateDecal(d.id, { layer }),
+      };
+    }
+    if (codeSelected && labelGeometry(currentTemplate(), currentPreset()).code) {
+      return {
+        key: 'code', title: currentTemplate().code.type === 'qr' ? 'QR code' : 'Barcode', object: true,
+        anchor: selectedObjectEl('.label-code'),
+        remove: () => {
+          selectCode(false);
+          updateCode({ type: 'none' });
+        },
+        arrange: (where) => arrangeSelected(where),
+      };
+    }
+    return null;
+  },
+  getTemplate: currentTemplate,
+  close: () => selectLine(null),
+});
+
 mountTemplateEditor({
+  getPresets: () => state.presets,
   getColumns: () => state.table.columns,
   getRows: () => state.table.rows,
   getPreset: currentPreset,
@@ -1323,7 +2178,43 @@ renderPreviewMode();
 refreshTable();
 renderDataSummary();
 renderAll();
+
+// Pasang sebagai aplikasi (PWA): tombol muncul bila browser menawarkan pemasangan
+let installPrompt = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  $('#btn-install').hidden = false;
+});
+$('#btn-install').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => null);
+  installPrompt = null;
+  $('#btn-install').hidden = true;
+});
+addEventListener('appinstalled', () => {
+  $('#btn-install').hidden = true;
+  toast(t('Cetak Label terpasang sebagai aplikasi.'));
+});
+
+// Bahasa antarmuka (Indonesia / English); isi label & data tidak ikut diterjemahkan
+initI18n();
+$('#lang-switch').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lang]');
+  if (b) setLang(b.dataset.lang);
+});
+// ringkasan angka memakai bentuk tunggal/jamak → dirender ulang saat ganti bahasa
+document.addEventListener('langchange', () => {
+  renderStats();
+  renderDataSummary();
+});
+renderBackupReminder();
+renderBackupPhotos();
+// jumlah foto bisa berubah (tambah/hapus foto): perbarui saat bagian Backup dibuka
+$('#btn-backup').closest('details').addEventListener('toggle', renderBackupPhotos);
 loadPhotos().then((n) => {
+  renderBackupPhotos();
   if (!n) return;
   renderPhotoControls();
   renderDataWarnings();

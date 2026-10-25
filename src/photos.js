@@ -97,6 +97,43 @@ export async function addPhotos(files, onProgress = () => {}) {
   return { added, skipped: files.length - added };
 }
 
+const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(r.result);
+  r.onerror = () => reject(r.error);
+  r.readAsDataURL(blob);
+});
+
+/** Semua foto sebagai { kunci: data URL JPEG } untuk disertakan di file backup. */
+export async function exportPhotos() {
+  const entries = await tx('readonly', (store) => {
+    const out = [];
+    const req = store.openCursor();
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) return;
+      out.push([cur.key, cur.value]);
+      cur.continue();
+    };
+    return out;
+  });
+  const result = {};
+  for (const [key, blob] of entries) result[key] = await blobToDataUrl(blob);
+  return result;
+}
+
+/** Pulihkan foto dari file backup ({ kunci: data URL }). Hasil: jumlah foto. */
+export async function importPhotos(map) {
+  let n = 0;
+  for (const [key, url] of Object.entries(map ?? {})) {
+    if (typeof url !== 'string' || !url.startsWith('data:image/')) continue;
+    const blob = await (await fetch(url)).blob();
+    await tx('readwrite', (store) => store.put(blob, photoKey(key)));
+    n++;
+  }
+  return n;
+}
+
 export async function clearPhotos() {
   await tx('readwrite', (store) => store.clear());
   for (const url of urls.values()) URL.revokeObjectURL(url);

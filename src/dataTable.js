@@ -76,6 +76,7 @@ export function renderDataTable(container, table, filter = '', sort = null, pred
     th.dataset.col = col;
     th.className = 'th-sort' + (sort?.col === col ? ` th-sort--${sort.dir}` : '');
     th.textContent = col;
+    th.translate = false; // nama kolom = data pengguna
     th.title = col === qty
       ? 'Kolom jumlah: baris dicetak sebanyak angka ini. Klik untuk mengurutkan.'
       : 'Klik untuk mengurutkan';

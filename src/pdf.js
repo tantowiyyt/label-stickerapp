@@ -52,6 +52,28 @@ function unitWidth(doc, family, segs) {
   }, 0);
 }
 
+/** Potong potongan teks agar lebar totalnya (satuan font) muat, lalu tambahkan "…". */
+function truncateSegs(doc, family, segs, maxUnits) {
+  const out = [];
+  let used = 0;
+  doc.setFont(family, 'normal');
+  const dots = doc.getStringUnitWidth('…');
+  for (const s of segs) {
+    doc.setFont(family, pdfStyle(s.bold, s.italic));
+    const w = doc.getStringUnitWidth(s.text);
+    if (used + w <= maxUnits - dots) {
+      out.push(s);
+      used += w;
+      continue;
+    }
+    let text = s.text;
+    while (text && used + doc.getStringUnitWidth(text) > maxUnits - dots) text = text.slice(0, -1);
+    out.push({ ...s, text: text.trimEnd() + '…' });
+    return out;
+  }
+  return out;
+}
+
 function drawText(doc, lines, box, tpl, map) {
   const prepared = lines.map((l) => {
     const family = pdfFamily(l.font);
@@ -65,6 +87,8 @@ function drawText(doc, lines, box, tpl, map) {
       doc.setFont(family, pdfStyle(bold, italic));
       doc.setFontSize(size);
       rows = doc.splitTextToSize(segs.map((s) => s.text).join(''), box.w).map((text) => [{ text, bold, italic }]);
+    } else if (l.ellipsis || (l.overflow === 'ellipsis' && unitW * size * PT_TO_MM > box.w)) {
+      rows = [truncateSegs(doc, family, segs, box.w / (size * PT_TO_MM))];
     } else if (unitW * size * PT_TO_MM > box.w) {
       // Font PDF sedikit berbeda ukurannya dari font layar: kecilkan bila perlu agar tetap muat.
       size = (box.w / (unitW * PT_TO_MM)) * 0.99;
@@ -83,8 +107,8 @@ function drawText(doc, lines, box, tpl, map) {
     doc.setTextColor(line.color);
     for (const segs of rows) {
       const w = unitWidth(doc, family, segs) * em;
-      let u = box.u + (line.align === 'left' ? 0 : line.align === 'right' ? box.w - w : (box.w - w) / 2);
-      const baseline = v + em * BASELINE_EM;
+      let u = box.u + line.dx + (line.align === 'left' ? 0 : line.align === 'right' ? box.w - w : (box.w - w) / 2);
+      const baseline = v + line.dy + em * BASELINE_EM;
       for (const s of segs) {
         doc.setFont(family, pdfStyle(s.bold, s.italic));
         const [x, y] = map.pt(u, baseline);
@@ -93,6 +117,26 @@ function drawText(doc, lines, box, tpl, map) {
       }
       v += lineH;
     }
+  }
+}
+
+/** Teks bebas: x/y = pojok kiri-atas kotak teks; baris-baris diratakan di dalam kotaknya. */
+function drawFreeTexts(doc, texts, map) {
+  for (const t of texts) {
+    const family = pdfFamily(t.font);
+    const em = t.size * PT_TO_MM;
+    doc.setFont(family, pdfStyle(t.bold, t.italic));
+    doc.setFontSize(t.size);
+    doc.setTextColor(t.color);
+    const rows = t.value.split('\n');
+    const widths = rows.map((r) => doc.getStringUnitWidth(r) * em);
+    const boxW = Math.max(0, ...widths);
+    rows.forEach((text, i) => {
+      const free = boxW - widths[i];
+      const u = t.x + (t.align === 'right' ? free : t.align === 'center' ? free / 2 : 0);
+      const [x, y] = map.pt(u, t.y + i * em * LINE_HEIGHT + em * BASELINE_EM);
+      if (text) doc.text(text, x, y, { angle: map.angle });
+    });
   }
 }
 
@@ -133,7 +177,7 @@ function rotateImage(src, deg) {
       g.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
       resolve(c.toDataURL('image/png'));
     };
-    img.onerror = () => reject(new Error('Gambar logo tidak bisa dibaca.'));
+    img.onerror = () => reject(new Error('Gambar tidak bisa dibaca.'));
     img.src = src;
   });
 }
@@ -150,7 +194,6 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
   const doc = new jsPDF({ unit: 'mm', format, orientation, compress: true });
   doc.setProperties({ title: filename.replace(/\.pdf$/, ''), creator: 'Cetak Label' });
   const geo = renderer.geometry;
-  const logo = geo.image ? await rotateImage(tpl.image.src, tpl.orientation) : null;
   const photoCache = new Map(); // satu foto dipakai berulang (jumlah/salinan) cukup diproses sekali
   const decals = await Promise.all((tpl.decals ?? []).map(async (d) => ({ ...d, data: await rotateImage(d.src, tpl.orientation) })));
   const drawDecals = (map, layer) => {
@@ -182,10 +225,6 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
         if (p.bulat) doc.ellipse(pos.x + p.lebar / 2, pos.y + p.tinggi / 2, p.lebar / 2 - 0.1, p.tinggi / 2 - 0.1);
         else doc.rect(pos.x + 0.1, pos.y + 0.1, p.lebar - 0.2, p.tinggi - 0.2);
       }
-      if (logo) {
-        const g = geo.image;
-        doc.addImage(logo, imageFormat(logo), ...map.rect(g.u, g.v, g.w, g.h), 'logo', 'FAST');
-      }
       const ph = renderer.photoFor(item);
       if (ph?.url) {
         if (!photoCache.has(ph.key)) photoCache.set(ph.key, await photoForPdf(ph.url, PHOTO_RATIOS[tpl.photo.ratio], tpl.orientation));
@@ -194,6 +233,7 @@ export async function exportPdf({ preset: p, cal, page, tpl, pages, renderer, bo
       }
       drawDecals(map, 'back');
       drawText(doc, renderer.layout(item), renderer.geometry.text, tpl, map);
+      drawFreeTexts(doc, renderer.freeTextsFor(item), map);
       const code = renderer.codeFor(item);
       if (code && !code.error) drawCode(doc, code, renderer.geometry.code, tpl, map);
       drawDecals(map, 'front');

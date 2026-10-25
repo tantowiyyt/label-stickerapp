@@ -1,0 +1,15 @@
+{
+  "name": "Cetak Label",
+  "short_name": "Cetak Label",
+  "description": "Cetak label stiker (T&J dan sejenisnya), kartu ujian, label alamat — offline.",
+  "lang": "id",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f2fd",
+  "theme_color": "#5b21b6",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

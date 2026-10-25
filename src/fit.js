@@ -63,32 +63,54 @@ function wrappedRows(segments, sizePt, availW) {
 
 const floorQ = (n) => Math.floor(n * 4) / 4; // bulatkan ke bawah per 0,25 pt
 
-/** Hitung wrap & tinggi untuk ukuran font yang sudah ditentukan. */
+/**
+ * Hitung wrap & tinggi untuk ukuran font yang sudah ditentukan.
+ * Baris "Potong …" (overflow 'ellipsis') tidak pernah di-wrap: kelebihannya dipotong.
+ */
 export function measureLines(lines, sizes, availW) {
   return lines.map((l, i) => {
     const size = sizes[i];
-    const wrap = widthPerPt(l.segments) * size > availW * SAFETY;
-    const rows = wrap ? wrappedRows(l.segments, size, availW * SAFETY) : 1;
-    return { size, wrap, rows };
+    const tooWide = widthPerPt(l.segments) * size > availW * SAFETY;
+    if (l.overflow === 'ellipsis') return { size, wrap: false, rows: 1, ellipsis: tooWide };
+    const rows = tooWide ? wrappedRows(l.segments, size, availW * SAFETY) : 1;
+    return { size, wrap: tooWide, rows, ellipsis: false };
   });
+}
+
+/**
+ * Ukuran awal satu baris sesuai pilihan "Jika terlalu panjang":
+ *  - shrink (bawaan): perkecil sampai muat 1 baris (min 6 pt), baru di-wrap.
+ *  - wrap: ukuran tetap, turun ke baris berikutnya; maxRows > 0 = perkecil sampai muat
+ *    dalam maxRows baris (min 6 pt).
+ *  - ellipsis: ukuran tetap 1 baris, kelebihannya dipotong dengan "…".
+ */
+function startSize(l, availW) {
+  if (l.overflow === 'ellipsis') return l.size;
+  if (l.overflow === 'wrap') {
+    if (!l.maxRows) return l.size;
+    let size = l.size;
+    while (size > MIN_PT && wrappedRows(l.segments, size, availW * SAFETY) > l.maxRows) {
+      size = Math.max(MIN_PT, floorQ(size * 0.95));
+    }
+    return size;
+  }
+  const perPt = widthPerPt(l.segments);
+  const maxSize = perPt > 0 ? (availW * SAFETY) / perPt : Infinity;
+  return l.size > maxSize ? Math.max(MIN_PT, floorQ(maxSize)) : l.size;
 }
 
 const totalHeight = (fitted) =>
   fitted.reduce((h, f) => h + f.rows * f.size * PT_TO_MM * LINE_HEIGHT, 0);
 
 /**
- * Auto-fit: lines = [{ size, segments: [{ text, bold, italic, font }] }].
- * 1. Baris yang lebih lebar dari area diperkecil sampai muat (min 6 pt).
- * 2. Baru jika di 6 pt masih tidak muat, baris itu di-wrap.
+ * Auto-fit: lines = [{ size, overflow, maxRows, segments: [{ text, bold, italic, font }] }].
+ * 1. Ukuran awal tiap baris sesuai pilihan "Jika terlalu panjang" (lihat startSize).
+ * 2. Baris yang masih lebih lebar dari area di-wrap (kecuali "Potong …").
  * 3. Jika total tinggi melebihi area, semua baris diperkecil bersama (min 6 pt).
- * Hasil: [{ size, wrap, rows }]
+ * Hasil: [{ size, wrap, rows, ellipsis }]
  */
 export function fitLines(lines, availW, availH) {
-  let sizes = lines.map((l) => {
-    const perPt = widthPerPt(l.segments);
-    const maxSize = perPt > 0 ? (availW * SAFETY) / perPt : Infinity;
-    return l.size > maxSize ? Math.max(MIN_PT, floorQ(maxSize)) : l.size;
-  });
+  let sizes = lines.map((l) => startSize(l, availW));
   let fitted = measureLines(lines, sizes, availW);
 
   for (let i = 0; i < 6; i++) {

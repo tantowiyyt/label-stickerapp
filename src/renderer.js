@@ -7,6 +7,7 @@ import { cssFamily } from './fonts.js';
 import { encode, codeSvg } from './code.js';
 
 const JUSTIFY = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
+const SELF = { left: 'flex-start', center: 'center', right: 'flex-end' };
 const CODE_GAP = 1; // mm antara teks dan barcode/QR
 
 /**
@@ -25,7 +26,7 @@ export function contentBox(tpl, p) {
 
 /**
  * Ambil sepotong area dari sisi `position` sebuah kotak.
- * Mengembalikan [area yang diambil, sisa kotak]. Dipakai untuk logo dan barcode/QR.
+ * Mengembalikan [area yang diambil, sisa kotak]. Dipakai untuk foto dan barcode/QR.
  *  - square=true (QR): area persegi, diratakan mengikuti rata horizontal/vertikal template.
  *  - selain itu: pita selebar/setinggi kotak dengan tebal `size`.
  */
@@ -79,8 +80,8 @@ function containRect(area, img, tpl, position) {
 
 /**
  * Pembagian area isi (koordinat lokal sebelum diputar, mm):
- * text = kotak teks, code = kotak barcode/QR, image = kotak logo (atau null).
- * Urutan pengambilan ruang: strip warna → logo → foto → barcode/QR → sisanya untuk teks.
+ * text = kotak teks, code = kotak barcode/QR, photo = kotak foto (atau null).
+ * Urutan pengambilan ruang: strip warna → foto → barcode/QR → sisanya untuk teks.
  * Dipakai bersama oleh tampilan/cetak (HTML) dan export PDF.
  */
 export function labelGeometry(tpl, p) {
@@ -88,14 +89,6 @@ export function labelGeometry(tpl, p) {
   const band = bandSize(tpl, box);
   // strip warna menempel di tepi atas isi (ikut berputar bersama isi), area teks bergeser ke bawah
   let rest = { u: box.pad, v: band + box.pad, w: box.w - 2 * box.pad, h: Math.max(1, box.h - 2 * box.pad - band) };
-
-  let image = null;
-  const img = tpl.image;
-  if (img?.src) {
-    let area;
-    [area, rest] = carve(rest, img.position, img.size, false, tpl);
-    image = containRect(area, img, tpl, img.position);
-  }
 
   let photo = null;
   const ph = tpl.photo;
@@ -105,12 +98,49 @@ export function labelGeometry(tpl, p) {
     photo = containRect(area, { w: PHOTO_RATIOS[ph.ratio], h: 1 }, tpl, ph.position);
   }
 
+  // gambar bebas dengan "Teks di samping gambar": area teks pindah ke sisi kosong terbesar
+  for (const d of tpl.decals ?? []) {
+    if (d.avoid && d.layer === 'front') rest = besideRect(rest, { u: d.x, v: d.y, w: d.width, h: decalHeight(d) });
+  }
+
   let code = null;
   const c = tpl.code;
   if (codeActive(c)) {
-    [code, rest] = carve(rest, c.position, c.size, c.type === 'qr', tpl);
+    if (c.free) {
+      code = freeRect(c, box, c.type === 'qr');
+      if (c.avoid) rest = besideRect(rest, code);
+    } else [code, rest] = carve(rest, c.position, c.size, c.type === 'qr', tpl);
   }
-  return { box, band, text: rest, code, image, photo };
+  return { box, band, text: rest, code, photo };
+}
+
+/** Barcode/QR posisi bebas: dijaga tetap di dalam label (mis. setelah ukuran label diganti). */
+function freeRect(c, box, square) {
+  let w = Math.min(c.w, box.w);
+  let h = Math.min(c.h, box.h);
+  if (square) w = h = Math.min(c.w, box.w, box.h);
+  const clamp = (v, max) => Math.min(Math.max(0, v), Math.max(0, max));
+  return { u: clamp(c.x, box.w - w), v: clamp(c.y, box.h - h), w, h };
+}
+
+/**
+ * "Teks di samping" barcode/QR atau gambar bebas (seperti Wrap Text → Square di Word):
+ * area teks diganti dengan ruang kosong terbesar di kiri/kanan/atas/bawah objek.
+ */
+function besideRect(rect, obj) {
+  const r = { u: rect.u, v: rect.v, w: rect.w, h: rect.h };
+  const right = rect.u + rect.w;
+  const bottom = rect.v + rect.h;
+  // tidak bertumpuk dengan area teks: biarkan
+  if (obj.u >= right || obj.u + obj.w <= rect.u || obj.v >= bottom || obj.v + obj.h <= rect.v) return r;
+  const options = [
+    { ...r, w: obj.u - CODE_GAP - rect.u }, // kiri
+    { ...r, u: obj.u + obj.w + CODE_GAP, w: right - (obj.u + obj.w + CODE_GAP) }, // kanan
+    { ...r, h: obj.v - CODE_GAP - rect.v }, // atas
+    { ...r, v: obj.v + obj.h + CODE_GAP, h: bottom - (obj.v + obj.h + CODE_GAP) }, // bawah
+  ].filter((o) => o.w >= 3 && o.h >= 3);
+  if (!options.length) return r;
+  return options.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a));
 }
 
 function bandSize(tpl, box) {
@@ -195,7 +225,7 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
         return { text, bold: part.bold || style.bold, italic: part.italic || style.italic, font };
       });
       const hidden = tpl.hideEmpty && stats.count > 0 && stats.filled === 0;
-      return { index, style, font, size: style.size, segments, hidden };
+      return { index, style, font, size: style.size, overflow: style.overflow, maxRows: style.maxRows, segments, hidden };
     }).filter((l) => !l.hidden);
   }
 
@@ -224,7 +254,7 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
         if (deco.target === 'text') color = deco.color;
         else if (deco.target === 'background' && isDark(deco.color)) color = '#ffffff';
       }
-      return { ...l, ...fitted[i], color, align: l.style.align ?? tpl.align };
+      return { ...l, ...fitted[i], color, align: l.style.align ?? tpl.align, dx: l.style.dx || 0, dy: l.style.dy || 0 };
     });
   }
 
@@ -267,6 +297,8 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
     } else {
       box.innerHTML = codeSvg(enc);
     }
+    // pegangan ubah ukuran (hanya tampil di preview)
+    box.insertAdjacentHTML('beforeend', '<span class="decal-handle code-handle" title="Tarik untuk mengubah ukuran"></span>');
     content.append(box);
   }
 
@@ -275,6 +307,7 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
     if (deco?.target === 'background') el.style.backgroundColor = deco.color;
     const content = document.createElement('div');
     content.className = 'label-content';
+    content.translate = false; // isi label = data pengguna, tidak ikut diterjemahkan
     Object.assign(content.style, {
       width: `${geo.box.w}mm`,
       height: `${geo.box.h}mm`,
@@ -290,10 +323,19 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
 
     for (const line of layout(row)) {
       const div = document.createElement('div');
-      div.className = 'label-line' + (line.wrap ? ' label-line--wrap' : '');
+      div.className = 'label-line' + (line.wrap ? ' label-line--wrap' : '') + (line.ellipsis ? ' label-line--cut' : '');
+      div.dataset.line = line.index;
+      // baris yang digeser di preview: tidak mengubah posisi baris lain
+      if (line.dx || line.dy) {
+        div.style.left = `${line.dx}mm`;
+        div.style.top = `${line.dy}mm`;
+        textBox.classList.add('label-text--moved');
+      }
       div.style.fontSize = `${line.size}pt`;
       div.style.fontFamily = cssFamily(line.font);
       div.style.textAlign = line.align;
+      // kotak baris selebar tulisannya (bukan selebar label) agar mudah dipilih & digeser di preview
+      if (!line.wrap) div.style.alignSelf = SELF[line.align];
       div.style.color = line.color;
       if (line.segments.every((s) => !s.text)) div.textContent = ' '; // baris kosong tetap memberi jarak
       for (const seg of line.segments) {
@@ -305,14 +347,6 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
         div.append(span);
       }
       textBox.append(div);
-    }
-    if (geo.image) {
-      const img = document.createElement('img');
-      img.className = 'label-image';
-      img.src = tpl.image.src;
-      img.alt = '';
-      place(img, geo.image);
-      content.append(img);
     }
     const ph = photoFor(row);
     if (ph) {
@@ -336,6 +370,17 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
     }
     appendDecals(content, 'back'); // di belakang teks (mis. watermark)
     content.append(textBox);
+    for (const t of freeTextsFor(row)) {
+      const div = document.createElement('div');
+      div.className = 'label-free';
+      div.dataset.free = t.id;
+      Object.assign(div.style, {
+        left: `${t.x}mm`, top: `${t.y}mm`, fontSize: `${t.size}pt`, fontFamily: cssFamily(t.font),
+        color: t.color, textAlign: t.align, fontWeight: t.bold ? '700' : '', fontStyle: t.italic ? 'italic' : '',
+      });
+      div.textContent = t.value || ' ';
+      content.append(div);
+    }
     renderCode(content, row);
     appendDecals(content, 'front');
     el.append(content);
@@ -361,5 +406,15 @@ export function createLabelRenderer(tpl, p, columns, rows, { rowNo = () => '' } 
     }
   }
 
-  return { render, layout, codeFor, decorFor, photoFor, geometry: geo };
+  /** Teks bebas untuk satu baris data: placeholder diisi, huruf besar bila diminta. */
+  function freeTextsFor(row) {
+    const extra = { no: rowNo(row), tanggal: today };
+    return (tpl.texts ?? []).map((t) => {
+      let value = fillPlaceholders(t.text, row.values, colMap, extra);
+      if (t.upper) value = value.toLocaleUpperCase('id');
+      return { ...t, font: t.font || tpl.font, value };
+    });
+  }
+
+  return { render, layout, codeFor, decorFor, photoFor, freeTextsFor, geometry: geo };
 }

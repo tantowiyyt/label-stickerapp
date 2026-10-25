@@ -14,7 +14,7 @@ const A4 = { width: 210, height: 297 };
 const ALIGN_X = ['left', 'center', 'right'];
 const ALIGN_Y = ['top', 'middle'];
 
-export const DEFAULT_MEDIA = { mode: 'a4-center', width: A4.width, height: A4.height, alignX: 'center', alignY: 'top' };
+export const DEFAULT_MEDIA = { mode: 'a4-center', width: A4.width, height: A4.height, alignX: 'center', alignY: 'top', orientation: 'portrait' };
 
 export function normalizeMedia(raw = {}) {
   const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
@@ -24,6 +24,7 @@ export function normalizeMedia(raw = {}) {
     height: num(raw.height, A4.height),
     alignX: ALIGN_X.includes(raw.alignX) ? raw.alignX : 'center',
     alignY: ALIGN_Y.includes(raw.alignY) ? raw.alignY : 'top',
+    orientation: raw.orientation === 'landscape' ? 'landscape' : 'portrait', // hanya memutar tampilan preview
   };
 }
 

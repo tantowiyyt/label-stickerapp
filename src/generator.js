@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import { encode, codeSvg, codePngBlob, codeSvgFile, BARCODE_FORMATS, isBarcode } from './code.js';
 import { $, toast, downloadBlob, downloadText } from './util.js';
 
@@ -107,7 +108,7 @@ function applyFill() {
   const rows = targetRows();
   if (!col || !rows.length) return;
   const table = ctx.getTable();
-  if (table.columns.includes(col) && !confirm(`Kolom "${col}" sudah ada. Timpa isinya untuk ${rows.length} baris?`)) return;
+  if (table.columns.includes(col) && !confirm(t(`Kolom "${col}" sudah ada. Timpa isinya untuk ${rows.length} baris?`))) return;
   const o = fillOptions();
   // kode acak tidak boleh sama dengan kode yang sudah ada di baris lain
   const others = new Set(table.rows.filter((r) => !rows.includes(r)).map((r) => String(r.values[col] ?? '')).filter(Boolean));

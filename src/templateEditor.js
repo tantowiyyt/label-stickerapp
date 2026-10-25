@@ -1,15 +1,20 @@
 import {
   ALIGNS, VALIGNS, ORIENTATIONS, DEFAULT_TEMPLATE, templateLines, syncLines, applyQuickStyle,
-  unknownPlaceholders, loadTemplates, saveTemplates, newTemplateId, groupKey, fillGroupColors, newDecalId, decalHeight,
-  exportTemplatesFile, parseTemplatesFile,
+  unknownPlaceholders, loadTemplates, saveTemplates as storeTemplates, newTemplateId, groupKey, fillGroupColors, newDecalId, decalHeight,
+  exportTemplatesFile, parseTemplatesFile, OVERFLOW_OPTIONS, overflowValue, newTextId, quickTexts, migrateLegacyLogo,
 } from './template.js';
 import { $, toast } from './util.js';
 import { fontOptionsHtml, askCustomFont, cssFamily } from './fonts.js';
 import { addPhotos, clearPhotos, photoCount, photoUrl } from './photos.js';
-import { contentBox } from './renderer.js';
+import { contentBox, labelGeometry } from './renderer.js';
+import { syncLayout } from './layoutAdapt.js';
+import { t as tr, lang } from './i18n.js'; // tr: nama t sudah dipakai untuk teks bebas
 import { BARCODE_FORMATS, isBarcode } from './code.js';
 
 /* ---------- Ikon (gaya tombol perataan seperti di Word) ---------- */
+
+const rotatedA = (deg) =>
+  `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="2"/><text x="8" y="11.6" text-anchor="middle" font-family="Arial, sans-serif" font-size="9.5" font-weight="700" fill="currentColor" stroke="none" transform="rotate(${deg} 8 8)">A</text></svg>`;
 
 const svg = (body) =>
   `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${body}</svg>`;
@@ -21,9 +26,10 @@ const ICONS = {
   top: svg('<path d="M2 2h12"/><path d="M5 5h6M5 8h6" stroke-width="2.2"/>'),
   middle: svg('<path d="M2 8h12" stroke-dasharray="1.5 1.5"/><path d="M5 5.5h6M5 10.5h6" stroke-width="2.2"/>'),
   bottom: svg('<path d="M2 14h12"/><path d="M5 8h6M5 11h6" stroke-width="2.2"/>'),
-  o0: svg('<rect x="4" y="1.5" width="8" height="13" rx="1"/><path d="M6 5h4M6 7.5h4"/>'),
-  o90: svg('<rect x="4" y="1.5" width="8" height="13" rx="1"/><path d="M9.5 4.5v7M7 4.5v7"/>'),
-  o270: svg('<rect x="4" y="1.5" width="8" height="13" rx="1"/><path d="M6.5 4.5v7M9 4.5v7"/><path d="M5.8 12.5h4.4" stroke-width="1"/>'),
+  // huruf "A" yang ikut berputar menunjukkan arah baca isi label
+  o0: rotatedA(0),
+  o90: rotatedA(90),
+  o270: rotatedA(270),
 };
 
 const TITLES = {
@@ -45,6 +51,76 @@ const setActive = (group, value) => {
 /* ---------- State ---------- */
 
 let templates = loadTemplates();
+
+/* ---------- Urungkan / Ulangi perubahan template ---------- */
+
+// Setiap penyimpanan template dicatat. Perubahan beruntun yang rapat (mengetik, menggeser
+// dengan panah) digabung menjadi satu langkah agar Urungkan tidak terasa "per huruf".
+const HISTORY_LIMIT = 50;
+const HISTORY_MERGE_MS = 700;
+let past = [];
+let future = [];
+let lastState = null;
+let lastChange = 0;
+let restoring = false;
+
+const snapshotState = () => JSON.stringify({ templates, currentId });
+
+function saveTemplates(list) {
+  storeTemplates(list);
+  if (restoring) return;
+  const state = snapshotState();
+  if (lastState == null || state === lastState) {
+    lastState = state;
+    return;
+  }
+  const now = Date.now();
+  if (now - lastChange > HISTORY_MERGE_MS || !past.length) {
+    past.push(lastState);
+    if (past.length > HISTORY_LIMIT) past.shift();
+  }
+  lastChange = now;
+  future = [];
+  lastState = state;
+  emitHistory();
+}
+
+const emitHistory = () => document.dispatchEvent(new CustomEvent('templatehistory', { detail: { canUndo: past.length > 0, canRedo: future.length > 0 } }));
+export const historyState = () => ({ canUndo: past.length > 0, canRedo: future.length > 0 });
+
+function restoreState(json) {
+  restoring = true;
+  const s = JSON.parse(json);
+  templates = s.templates;
+  if (templates.some((t) => t.id === s.currentId)) currentId = s.currentId;
+  storeTemplates(templates);
+  restoring = false;
+  lastState = json;
+  lastChange = 0;
+  const settings = ctx.getSettings();
+  settings.templateId = currentId;
+  ctx.saveSettings();
+  selectLine(null);
+  renderTemplateEditor();
+  ctx.onChange(); // gambar ulang preview
+  emitHistory();
+}
+
+/** Urungkan perubahan template terakhir; false bila tidak ada. */
+export function undoTemplate() {
+  if (!past.length) return false;
+  future.push(lastState);
+  restoreState(past.pop());
+  return true;
+}
+
+/** Ulangi perubahan yang baru diurungkan; false bila tidak ada. */
+export function redoTemplate() {
+  if (!future.length) return false;
+  past.push(lastState);
+  restoreState(future.pop());
+  return true;
+}
 let currentId;
 let ctx; // { getColumns(), getSettings(), saveSettings(), onChange() }
 
@@ -109,12 +185,22 @@ function renderWarnings() {
     : '';
 }
 
+const mmText = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString('id-ID', { maximumFractionDigits: 1 })}`;
+
+/** Keterangan geseran baris, mis. "X +2 · Y −1,5 mm", dengan tombol kembalikan. */
+function offsetBadge(l) {
+  if (!l.dx && !l.dy) return '';
+  return `<span class="line-offset" title="Baris ini digeser di preview">↔ X ${mmText(l.dx)} · Y ${mmText(l.dy)} mm</span>
+    <button type="button" class="link line-offset-reset" title="Kembalikan baris ini ke posisi otomatis">Kembalikan</button>`;
+}
+
 function renderLines() {
   const tpl = syncLines(currentTemplate());
   const texts = templateLines(tpl);
+  $('#tpl-lines-reset').hidden = !tpl.lines.some((l) => l.dx || l.dy);
   $('#tpl-lines').innerHTML = tpl.lines.map((l, i) => `
-    <div class="line-row" data-i="${i}">
-      <div class="line-head"><span class="line-no">${i + 1}</span><code class="line-text">${escapeHtml(texts[i]) || '<i>(kosong)</i>'}</code></div>
+    <div class="line-row${i === selectedLine ? ' is-selected' : ''}" data-i="${i}">
+      <div class="line-head"><span class="line-no">${i + 1}</span><code class="line-text" translate="no">${escapeHtml(texts[i]) || '<i>(kosong)</i>'}</code>${offsetBadge(l)}</div>
       <div class="line-tools">
         <button type="button" class="tbtn${l.bold ? ' active' : ''}" data-prop="bold" title="Tebal"><b>B</b></button>
         <button type="button" class="tbtn${l.italic ? ' active' : ''}" data-prop="italic" title="Miring"><i>I</i></button>
@@ -129,6 +215,10 @@ function renderLines() {
         <select class="line-font" title="Font baris ini" style="font-family:${escapeHtml(cssFamily(l.font || tpl.font))}">
           ${fontOptionsHtml(l.font || '', `Font global (${tpl.font})`)}
         </select>
+        <label class="line-overflow-wrap" title="Jika teks baris ini terlalu panjang untuk label">
+          <span>Jika panjang</span>
+          <select class="line-overflow">${overflowOptionsHtml(l)}</select>
+        </label>
       </div>
     </div>`).join('');
 }
@@ -138,8 +228,8 @@ function syncControls() {
   setActive($('#tpl-align'), tpl.align);
   setActive($('#tpl-valign'), tpl.valign);
   setActive($('#tpl-orient'), tpl.orientation);
+  setActive($('#pv-orient'), tpl.orientation);
   syncCodeControls(tpl);
-  syncImageControls(tpl);
   renderPhotoControls();
   renderDecals();
   renderGroups();
@@ -192,15 +282,15 @@ function renderGroups() {
     ? [...groups.entries()].map(([key, g]) => `
       <label class="grp-row">
         <input type="color" data-key="${escapeHtml(key)}" value="${rule.colors[key]}">
-        <span class="grp-name" title="${escapeHtml(g.label)}">${escapeHtml(g.label)}</span>
+        <span class="grp-name" translate="no" title="${escapeHtml(g.label)}">${escapeHtml(g.label)}</span>
         <span class="grp-count">${g.count.toLocaleString('id-ID')}</span>
       </label>`).join('')
     : '<div class="grp-empty">Kolom ini kosong di data.</div>';
 }
 
-/* ---------- Logo / gambar ---------- */
+/* ---------- Baca file gambar (gambar bebas) ---------- */
 
-const MAX_IMG_PX = 600; // cukup tajam untuk logo ukuran label; menjaga localStorage tetap kecil
+const MAX_IMG_PX = 600; // cukup tajam untuk logo ukuran label; menjaga data tersimpan tetap kecil
 
 /** Baca file gambar, perkecil bila perlu, hasil { src (data URL), w, h }. */
 function loadImageFile(file) {
@@ -230,17 +320,187 @@ function loadImageFile(file) {
   });
 }
 
-function syncImageControls(tpl) {
-  const im = tpl.image;
-  const thumb = $('#tpl-img-thumb');
-  thumb.style.backgroundImage = im.src ? `url("${im.src}")` : '';
-  thumb.classList.toggle('logo-thumb--set', !!im.src);
-  $('#tpl-img-del').hidden = !im.src;
-  $('#tpl-img-pick').textContent = im.src ? 'Ganti gambar…' : 'Pilih gambar…';
-  $('#tpl-img-opts').hidden = !im.src;
-  setActive($('#tpl-img-pos'), im.position);
-  $('#tpl-img-size').value = im.size;
-  $('#tpl-img-size-label').textContent = im.position === 'top' || im.position === 'bottom' ? 'Tinggi area' : 'Lebar area';
+/* ---------- Tata letak per ukuran label ---------- */
+
+/**
+ * Pakai tata letak template yang sesuai dengan ukuran label sekarang.
+ * Hasil: null / 'restored' / 'adapted' (lihat layoutAdapt.js).
+ */
+export function syncTemplateLayout() {
+  const result = syncLayout(currentTemplate(), ctx.getPreset(), ctx.getPresets());
+  if (result) {
+    saveTemplates(templates);
+    renderLines();
+    renderDecals();
+    syncControls();
+  } else if (!currentTemplate().layoutFor) {
+    currentTemplate().layoutFor = ctx.getPreset().id;
+    saveTemplates(templates);
+  }
+  renderLayoutInfo();
+  return result;
+}
+
+function renderLayoutInfo() {
+  const p = ctx.getPreset();
+  $('#tpl-layout-info').innerHTML = `Tata letak (orientasi, ukuran font, posisi tulisan/QR/gambar) disimpan khusus untuk <b>${escapeHtml(p.nama.split(' — ')[0])}</b>. Ukuran label lain punya tata letak sendiri; yang belum pernah dipakai disesuaikan otomatis.`;
+}
+
+/* ---------- Teks bebas (di luar data, mis. "Kepada Yth.") ---------- */
+
+let selectedFree = null;
+export const getSelectedFree = () => selectedFree;
+
+export function selectFree(id) {
+  selectedFree = id;
+  selectedLine = null;
+  for (const el of document.querySelectorAll('.line-row, .label-line')) el.classList.remove('is-selected');
+  for (const el of document.querySelectorAll('.label-free')) el.classList.toggle('is-selected', el.dataset.free === id);
+  for (const el of document.querySelectorAll('.ft-item')) el.classList.toggle('is-selected', el.dataset.id === id);
+  document.dispatchEvent(new CustomEvent('lineselect'));
+}
+
+export const getFreeText = (id) => currentTemplate().texts.find((t) => t.id === id) ?? null;
+
+/** Ubah teks bebas (isi, posisi, gaya). */
+export function updateFreeText(id, patch) {
+  const t = getFreeText(id);
+  if (!t) return;
+  Object.assign(t, patch);
+  for (const k of ['x', 'y']) if (k in patch) t[k] = r1(t[k]);
+  saveTemplates(templates);
+  syncFreeInputs(t);
+  ctx.onChange();
+}
+
+/** Tambah teks bebas di pojok kiri atas area isi; hasilnya langsung terpilih. */
+/** text kosong = "Teks baru" (langsung siap diketik di panel bila focusPanel). */
+export function addFreeText(text = null, { focusPanel = true } = {}) {
+  const blank = text == null;
+  text ??= tr('Teks baru');
+  const tpl = currentTemplate();
+  const box = contentBox(tpl, ctx.getPreset());
+  // teks berikutnya diletakkan sedikit di bawah teks sebelumnya agar tidak bertumpuk
+  const y = r1(Math.min(box.h - 4, box.pad + tpl.texts.length * 4));
+  const t = { id: newTextId(), text, x: r1(box.pad), y, size: 9, bold: false, italic: false, upper: false, color: '#000000', font: null, align: 'left' };
+  tpl.texts.push(t);
+  saveTemplates(templates);
+  renderFreeTexts();
+  ctx.onChange();
+  selectFree(t.id);
+  if (blank && focusPanel) {
+    // langsung siap diketik
+    const input = document.querySelector(`.ft-item[data-id="${t.id}"] .ft-text`);
+    input?.focus();
+    input?.select();
+  }
+  return t.id;
+}
+
+/** Salin teks bebas, digeser 2 mm; salinannya langsung terpilih. */
+export function duplicateFreeText(id) {
+  const t = getFreeText(id);
+  if (!t) return;
+  const copy = { ...t, id: newTextId(), x: r1(t.x + 2), y: r1(t.y + 2) };
+  const tpl = currentTemplate();
+  tpl.texts.splice(tpl.texts.indexOf(t) + 1, 0, copy);
+  saveTemplates(templates);
+  renderFreeTexts();
+  ctx.onChange();
+  selectFree(copy.id);
+}
+
+export function removeFreeText(id) {
+  const tpl = currentTemplate();
+  tpl.texts = tpl.texts.filter((t) => t.id !== id);
+  if (selectedFree === id) selectFree(null);
+  saveTemplates(templates);
+  renderFreeTexts();
+  ctx.onChange();
+}
+
+function syncFreeInputs(t) {
+  const item = document.querySelector(`.ft-item[data-id="${t.id}"]`);
+  if (!item) return renderFreeTexts();
+  for (const [k, v] of [['text', t.text], ['x', r1(t.x)], ['y', r1(t.y)], ['size', t.size]]) {
+    const input = item.querySelector(`[data-k="${k}"]`);
+    if (document.activeElement !== input) input.value = v;
+  }
+}
+
+function renderFreeTexts() {
+  const list = currentTemplate().texts;
+  $('#ft-list').innerHTML = list.length
+    ? list.map((t) => `
+      <div class="ft-item${t.id === selectedFree ? ' is-selected' : ''}" data-id="${t.id}">
+        <input type="text" class="ft-text" data-k="text" value="${escapeHtml(t.text)}" placeholder="Ketik teks…" aria-label="Isi teks bebas">
+        <div class="ft-grid">
+          <label class="field"><span>X (mm)</span><input type="number" step="0.5" data-k="x" value="${r1(t.x)}"></label>
+          <label class="field"><span>Y (mm)</span><input type="number" step="0.5" data-k="y" value="${r1(t.y)}"></label>
+          <label class="field"><span>Ukuran (pt)</span><input type="number" step="0.5" min="4" max="96" data-k="size" value="${t.size}"></label>
+          <button type="button" class="ghost danger ft-del" title="Hapus teks ini">Hapus</button>
+        </div>
+      </div>`).join('')
+    : '<p class="hint">Belum ada teks bebas.</p>';
+}
+
+/* ---------- Jika teks terlalu panjang ---------- */
+
+export const overflowOptionsHtml = (l) => OVERFLOW_OPTIONS
+  .map((o) => `<option value="${o.value}" title="${o.title}"${o.value === overflowValue(l) ? ' selected' : ''}>${o.label}</option>`).join('');
+
+/** Nilai menu → { overflow, maxRows } untuk gaya baris. */
+export function overflowPatch(value) {
+  const o = OVERFLOW_OPTIONS.find((x) => x.value === value) ?? OVERFLOW_OPTIONS[0];
+  return { overflow: o.overflow, maxRows: o.maxRows };
+}
+
+/* ---------- Geser baris teks (di preview) ---------- */
+
+let selectedLine = null;
+export const getSelectedLine = () => selectedLine;
+
+export function selectLine(i) {
+  selectedLine = i;
+  selectedFree = null; // satu pilihan teks dalam satu waktu (selectLine(null) = batal pilih semua)
+  for (const el of document.querySelectorAll('.label-free, .ft-item')) el.classList.remove('is-selected');
+  for (const el of document.querySelectorAll('.line-row')) el.classList.toggle('is-selected', Number(el.dataset.i) === i);
+  for (const el of document.querySelectorAll('.label-line')) el.classList.toggle('is-selected', Number(el.dataset.line) === i);
+  document.dispatchEvent(new CustomEvent('lineselect'));
+}
+
+/** Ubah gaya satu baris (font, ukuran, tebal, warna, rata, …), dipakai toolbar mini di preview. */
+export function updateLineStyle(i, patch) {
+  const l = currentTemplate().lines[i];
+  if (!l) return;
+  Object.assign(l, patch);
+  changed({ lines: true });
+}
+
+/** Ubah geseran satu baris (mm); i = null → semua baris kembali ke posisi otomatis. */
+export function updateLineOffset(i, patch) {
+  const lines = currentTemplate().lines;
+  for (const l of i == null ? lines : [lines[i]].filter(Boolean)) {
+    l.dx = r1(patch.dx ?? l.dx);
+    l.dy = r1(patch.dy ?? l.dy);
+  }
+  changed({ lines: true });
+}
+
+/* ---------- Barcode/QR posisi bebas ---------- */
+
+/** Posisi bebas yang dimulai dari letak barcode/QR saat ini (agar tidak meloncat). */
+export function freeCodeFromLayout(tpl) {
+  const g = labelGeometry(tpl, ctx.getPreset()).code;
+  if (!g) return { free: true };
+  return { free: true, x: r1(g.u), y: r1(g.v), w: r1(g.w), h: r1(g.h) };
+}
+
+/** Ubah posisi/ukuran barcode/QR (dipakai saat digeser di preview). */
+export function updateCode(patch) {
+  const c = currentTemplate().code;
+  for (const [k, v] of Object.entries(patch)) c[k] = typeof v === 'number' ? r1(v) : v;
+  changed();
 }
 
 /* ---------- Gambar bebas (branding) ---------- */
@@ -252,6 +512,27 @@ export function selectDecal(id) {
   selectedDecal = id;
   for (const el of document.querySelectorAll('.dc-item')) el.classList.toggle('is-selected', el.dataset.id === id);
   for (const el of document.querySelectorAll('.label-decal')) el.classList.toggle('is-selected', el.dataset.decal === id);
+  document.dispatchEvent(new CustomEvent('lineselect'));
+}
+
+export const getDecal = (id) => currentTemplate().decals.find((d) => d.id === id) ?? null;
+
+export function removeDecal(id) {
+  const tpl = currentTemplate();
+  tpl.decals = tpl.decals.filter((d) => d.id !== id);
+  if (selectedDecal === id) selectDecal(null);
+  changed();
+}
+
+/** Salin gambar bebas, digeser 2 mm agar terlihat; salinannya langsung terpilih. */
+export function duplicateDecal(id) {
+  const d = getDecal(id);
+  if (!d) return;
+  const copy = { ...d, id: newDecalId(), x: r1(d.x + 2), y: r1(d.y + 2) };
+  const tpl = currentTemplate();
+  tpl.decals.splice(tpl.decals.indexOf(d) + 1, 0, copy);
+  changed();
+  selectDecal(copy.id);
 }
 
 /** Ubah gambar bebas (dipakai juga saat digeser di preview). */
@@ -276,6 +557,9 @@ function syncDecalInputs(d) {
   item.querySelector('[data-k="opacity"]').value = Math.round(d.opacity * 100);
   item.querySelector('.dc-op').textContent = `${Math.round(d.opacity * 100)}%`;
   setActive(item.querySelector('.dc-layer'), d.layer);
+  const avoid = item.querySelector('[data-k="avoid"]');
+  avoid.checked = d.avoid;
+  avoid.disabled = d.layer === 'back';
 }
 
 function renderDecals() {
@@ -303,6 +587,7 @@ function renderDecals() {
           <input type="range" min="5" max="100" step="5" data-k="opacity" value="${Math.round(d.opacity * 100)}" style="flex:1;min-width:80px">
           <span class="hint dc-op" style="margin:0;width:34px">${Math.round(d.opacity * 100)}%</span>
         </div>
+        <label class="switch switch--inline dc-avoid" title="Seperti Wrap Text → Square di Word (hanya untuk gambar di depan teks)"><input type="checkbox" data-k="avoid"${d.avoid ? ' checked' : ''}${d.layer === 'back' ? ' disabled' : ''}><span class="switch-ui"></span>Teks di samping gambar (tidak tertimpa)</label>
       </div>`).join('')
     : '<p class="hint">Belum ada gambar bebas.</p>';
 }
@@ -366,7 +651,7 @@ function syncCodeControls(tpl) {
   const c = tpl.code;
   const barcode = isBarcode(c.type);
   setActive($('#tpl-code-type'), barcode ? 'barcode' : c.type);
-  setActive($('#tpl-code-pos'), c.position);
+  setActive($('#tpl-code-pos'), c.free ? 'free' : c.position);
   setActive($('#tpl-code-src'), c.source);
   $('#tpl-code-opts').hidden = c.type === 'none';
   $('#tpl-code-format').hidden = $('#tpl-code-format-label').hidden = !barcode;
@@ -379,11 +664,13 @@ function syncCodeControls(tpl) {
   $('#tpl-code-hint').textContent = c.type === 'none' ? ''
     : (barcode ? `${BARCODE_FORMATS[c.type].label}: ${BARCODE_FORMATS[c.type].hint}. ` : 'QR code: teks apa saja, termasuk URL. ')
       + (fromText ? 'Teks boleh berisi placeholder, mis. {{nim}}.' : '');
-  $('#tpl-code-size').value = c.size;
+  $('#tpl-code-size').value = c.free ? r1(c.type === 'qr' ? c.w : c.h) : c.size;
   $('#tpl-code-text').checked = c.showText;
+  $('#tpl-code-avoid').checked = c.avoid;
+  $('#tpl-code-avoid-row').hidden = !c.free;
   $('#tpl-code-text-row').hidden = !barcode;
   const vertical = c.position === 'top' || c.position === 'bottom';
-  $('#tpl-code-size-label').textContent = c.type === 'qr' ? 'Ukuran (sisi)' : vertical ? 'Tinggi' : 'Lebar';
+  $('#tpl-code-size-label').textContent = c.type === 'qr' ? 'Ukuran (sisi)' : vertical || c.free ? 'Tinggi' : 'Lebar';
 
   const cols = ctx.getColumns();
   const options = cols.includes(c.column) || !c.column ? cols : [c.column, ...cols];
@@ -396,6 +683,7 @@ export function renderTemplateEditor() {
   $('#tpl-text').value = currentTemplate().text;
   renderColumns();
   renderLines();
+  renderFreeTexts();
   syncControls();
 }
 
@@ -404,6 +692,7 @@ function selectTemplate(id) {
   const s = ctx.getSettings();
   s.templateId = id;
   ctx.saveSettings();
+  syncTemplateLayout();
   renderTemplateEditor();
   ctx.onChange();
 }
@@ -414,10 +703,19 @@ export function mountTemplateEditor(context) {
   ctx = context;
   currentId = ctx.getSettings().templateId ?? DEFAULT_TEMPLATE.id;
   if (!templates.some((t) => t.id === currentId)) currentId = templates[0].id;
+  // logo dari fitur lama "Logo / gambar" → gambar bebas di sisi yang sama
+  const migrated = templates.filter((t) => migrateLegacyLogo(t, contentBox(t, ctx.getPreset()))).length;
+  if (migrated) {
+    saveTemplates(templates);
+    setTimeout(() => toast('Logo dipindahkan ke "Gambar bebas" (bisa digeser & diubah ukurannya di preview).'), 300);
+  }
+  syncTemplateLayout();
+  lastState = snapshotState(); // titik awal riwayat Urungkan
 
   $('#tpl-align').innerHTML = segButtons(ALIGNS);
   $('#tpl-valign').innerHTML = segButtons(VALIGNS);
   $('#tpl-orient').innerHTML = segButtons(ORIENTATIONS, (v) => `o${v}`);
+  $('#pv-orient').innerHTML = segButtons(ORIENTATIONS, (v) => `o${v}`); // salinan di toolbar preview
 
   $('#tpl-select').addEventListener('change', (e) => selectTemplate(e.target.value));
 
@@ -430,7 +728,7 @@ export function mountTemplateEditor(context) {
 
   $('#tpl-save-as').addEventListener('click', () => {
     const src = currentTemplate();
-    const nama = prompt('Nama template baru:', `${src.nama} (salinan)`);
+    const nama = prompt(tr('Nama template baru:'), `${src.nama} (salinan)`);
     if (nama == null) return;
     const tpl = { ...structuredClone(src), id: newTemplateId(), nama: nama.trim() || 'Template' };
     templates.push(tpl);
@@ -442,7 +740,7 @@ export function mountTemplateEditor(context) {
   $('#tpl-del').addEventListener('click', () => {
     if (templates.length <= 1) return toast('Minimal harus ada satu template.', 'error');
     const tpl = currentTemplate();
-    if (!confirm(`Hapus template "${tpl.nama}"?`)) return;
+    if (!confirm(tr(`Hapus template "${tpl.nama}"?`))) return;
     templates = templates.filter((t) => t !== tpl);
     saveTemplates(templates);
     selectTemplate(templates[0].id);
@@ -470,16 +768,54 @@ export function mountTemplateEditor(context) {
   }
 
   const lines = $('#tpl-lines');
+  const renderQuick = () => {
+    $('#ft-quick').innerHTML = quickTexts(lang).map((q) => `<button type="button" class="chip chip--text" data-text="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('');
+  };
+  renderQuick();
+  document.addEventListener('langchange', renderQuick);
+  $('#ft-add').addEventListener('click', () => addFreeText());
+  $('#ft-quick').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-text]');
+    if (chip) addFreeText(chip.dataset.text);
+  });
+  const ftList = $('#ft-list');
+  ftList.addEventListener('click', (e) => {
+    const item = e.target.closest('.ft-item');
+    if (!item) return;
+    if (e.target.closest('.ft-del')) return removeFreeText(item.dataset.id);
+    if (selectedFree !== item.dataset.id) selectFree(item.dataset.id);
+  });
+  ftList.addEventListener('input', (e) => {
+    const item = e.target.closest('.ft-item');
+    const k = e.target.dataset.k;
+    if (!item || !k) return;
+    if (k === 'text') return updateFreeText(item.dataset.id, { text: e.target.value });
+    const v = parseFloat(String(e.target.value).replace(',', '.'));
+    if (!Number.isFinite(v)) return;
+    if (k === 'size') {
+      if (v >= 4 && v <= 96) updateFreeText(item.dataset.id, { size: v });
+    } else updateFreeText(item.dataset.id, { [k]: v });
+  });
+
+  $('#tpl-lines-reset').addEventListener('click', () => {
+    updateLineOffset(null, { dx: 0, dy: 0 });
+    toast('Semua baris kembali ke posisi otomatis.');
+  });
   lines.addEventListener('click', (e) => {
     const row = e.target.closest('.line-row');
     const btn = e.target.closest('button');
     if (!row || !btn) return;
+    if (btn.matches('.line-offset-reset')) return updateLineOffset(Number(row.dataset.i), { dx: 0, dy: 0 });
     const l = currentTemplate().lines[row.dataset.i];
     if (btn.dataset.prop) l[btn.dataset.prop] = !l[btn.dataset.prop];
     else if (btn.dataset.align) l.align = l.align === btn.dataset.align ? null : btn.dataset.align;
     changed({ lines: true });
   });
   lines.addEventListener('change', (e) => {
+    if (e.target.matches('.line-overflow')) {
+      updateLineStyle(Number(e.target.closest('.line-row').dataset.i), overflowPatch(e.target.value));
+      return;
+    }
     if (!e.target.matches('.line-font')) return;
     const l = currentTemplate().lines[e.target.closest('.line-row').dataset.i];
     let font = e.target.value;
@@ -510,6 +846,7 @@ export function mountTemplateEditor(context) {
   bindSeg('#tpl-align', (t, v) => { t.align = v; });
   bindSeg('#tpl-valign', (t, v) => { t.valign = v; });
   bindSeg('#tpl-orient', (t, v) => { t.orientation = Number(v); });
+  bindSeg('#pv-orient', (t, v) => { t.orientation = Number(v); });
 
   $('#tpl-font').addEventListener('change', (e) => {
     const tpl = currentTemplate();
@@ -529,7 +866,14 @@ export function mountTemplateEditor(context) {
     }
     if (v === 'qr' && t.code.position !== 'left' && t.code.position !== 'right') t.code.position = 'right';
   });
-  bindSeg('#tpl-code-pos', (t, v) => { t.code.position = v; });
+  bindSeg('#tpl-code-pos', (t, v) => {
+    if (v !== 'free') {
+      t.code.position = v;
+      t.code.free = false;
+    } else if (!t.code.free) {
+      Object.assign(t.code, freeCodeFromLayout(t));
+    }
+  });
   bindSeg('#tpl-code-src', (t, v) => { t.code.source = v; });
   $('#tpl-code-format').addEventListener('change', (e) => {
     const c = currentTemplate().code;
@@ -548,37 +892,18 @@ export function mountTemplateEditor(context) {
   $('#tpl-code-size').addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
     if (!Number.isFinite(v) || v < 1) return;
-    currentTemplate().code.size = v;
+    const c = currentTemplate().code;
+    if (!c.free) c.size = v;
+    else if (c.type === 'qr') c.w = c.h = v;
+    else c.h = v;
+    changed();
+  });
+  $('#tpl-code-avoid').addEventListener('change', (e) => {
+    currentTemplate().code.avoid = e.target.checked;
     changed();
   });
   $('#tpl-code-text').addEventListener('change', (e) => {
     currentTemplate().code.showText = e.target.checked;
-    changed();
-  });
-
-  $('#tpl-img-pick').addEventListener('click', () => $('#tpl-img-file').click());
-  $('#tpl-img-file').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      const { src, w, h } = await loadImageFile(file);
-      Object.assign(currentTemplate().image, { src, w, h });
-      changed();
-      toast('Gambar ditambahkan ke label.');
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  });
-  $('#tpl-img-del').addEventListener('click', () => {
-    Object.assign(currentTemplate().image, { src: '', w: 0, h: 0 });
-    changed();
-  });
-  bindSeg('#tpl-img-pos', (t, v) => { t.image.position = v; });
-  $('#tpl-img-size').addEventListener('input', (e) => {
-    const v = parseFloat(e.target.value);
-    if (!Number.isFinite(v) || v <= 0) return;
-    currentTemplate().image.size = v;
     changed();
   });
 
@@ -608,21 +933,20 @@ export function mountTemplateEditor(context) {
     const id = item.dataset.id;
     const tpl = currentTemplate();
     const d = tpl.decals.find((x) => x.id === id);
-    if (e.target.closest('.dc-del')) {
-      tpl.decals = tpl.decals.filter((x) => x.id !== id);
-      if (selectedDecal === id) selectedDecal = null;
-      changed();
-      return;
-    }
+    if (e.target.closest('.dc-del')) return removeDecal(id);
     if (e.target.closest('.dc-center')) return updateDecal(id, centerDecal(d));
     const layerBtn = e.target.closest('.dc-layer [data-value]');
     if (layerBtn) return updateDecal(id, { layer: layerBtn.dataset.value });
     selectDecal(id);
   });
+  dcList.addEventListener('change', (e) => {
+    const item = e.target.closest('.dc-item');
+    if (item && e.target.dataset.k === 'avoid') updateDecal(item.dataset.id, { avoid: e.target.checked });
+  });
   dcList.addEventListener('input', (e) => {
     const k = e.target.dataset.k;
     const item = e.target.closest('.dc-item');
-    if (!k || !item) return;
+    if (!k || k === 'avoid' || !item) return;
     const v = parseFloat(e.target.value);
     if (!Number.isFinite(v)) return;
     if (k === 'opacity') updateDecal(item.dataset.id, { opacity: v / 100 });
@@ -644,7 +968,7 @@ export function mountTemplateEditor(context) {
     });
   }
   $('#ph-clear').addEventListener('click', async () => {
-    if (!confirm(`Hapus semua ${photoCount()} foto yang tersimpan di browser ini?`)) return;
+    if (!confirm(tr(`Hapus semua ${photoCount()} foto yang tersimpan di browser ini?`))) return;
     await clearPhotos();
     toast('Semua foto dihapus.');
     changed();
@@ -707,6 +1031,7 @@ export function mountTemplateEditor(context) {
     if (!file) return;
     try {
       const incoming = parseTemplatesFile(await file.text());
+      for (const t of incoming) migrateLegacyLogo(t, contentBox(t, ctx.getPreset()));
       const byId = new Map(templates.map((t) => [t.id, t]));
       for (const t of incoming) byId.set(t.id, t);
       templates = [...byId.values()];
