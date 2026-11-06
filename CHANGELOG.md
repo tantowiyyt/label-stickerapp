@@ -200,6 +200,10 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`; nam
 - Pembaruan alat build: `vite` 8.3.4 → 8.3.6, `vite-plugin-singlefile` 2.3.3 → 2.3.4. Build berhasil, `npm audit` bersih.
 - CHANGELOG: status terkini & daftar ide diperbarui.
 
+**Persiapan deploy ke Vercel**
+- `vercel.json`: build `npm run build`, keluaran `dist/`; `index.html` & `sw.js` selalu dicek ulang (`no-cache`) agar PWA langsung dapat versi terbaru; header keamanan dasar.
+- `.vercel/` diabaikan Git.
+
 ## Keterbatasan yang diketahui
 
 - Foto per orang ikut file backup hanya bila *Sertakan foto per orang* dicentang.
