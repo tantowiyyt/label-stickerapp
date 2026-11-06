@@ -2,11 +2,23 @@
 
 Riwayat pengembangan aplikasi **ZaviLabels** (sebelumnya Cetak Label). Tanggal memakai format YYYY-MM-DD.
 
-## Status saat ini (2026-10-16)
+## Status saat ini (2026-10-25)
 
-Semua tahap dari rencana awal sudah selesai, ditambah banyak fitur lanjutan. Aplikasi sudah dipakai untuk mencetak kartu ujian (±475 baris data: nama, NIM, kelas, no. kursi, prodi) di printer **Epson L5190** dengan pengaturan **Kertas di printer: A4, lembar label di tengah-atas** (sudah dicek pas di kertas asli, sisa selisih dikoreksi dengan Offset X/Y).
+Aplikasi berganti nama menjadi **ZaviLabels** (logo baru: label harga emas dengan monogram "Z"). Semua fitur dari daftar saran sudah selesai dan ada di `main` (commit terakhir `3c432f4`).
 
-Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
+Ringkasan kemampuan sekarang:
+- **Editor seperti Word/Canva:** geser tulisan/QR/gambar/bentuk dengan snap & garis bantu, toolbar mini format (font, ukuran, warna, rata, "jika terlalu panjang"), teks bebas, bentuk & garis, putar objek, rata/duplikat/hapus/lapisan, Urungkan/Ulangi, format sebagian kata (Ctrl+B/I), format data (`|tanggal`, `|rupiah`, `|atau:`…).
+- **Tata letak per ukuran label** (otomatis menyesuaikan saat ganti ukuran), galeri 7 template, bagikan template lewat link.
+- **Data & cetak:** Google Sheets, cetak per kelompok (lembar baru per ruang), cetak hanya yang tampil, PDF dengan font asli, tampilan landscape.
+- **Platform:** penyimpanan IndexedDB, PWA (install & offline), bahasa ID/EN, pengingat backup (foto bisa ikut backup), 5 tema (Deluxe bawaan, Zamrud, Onyx, Rosé, Ceria), efek kaca, View Transitions, kontras WCAG AA.
+
+Dipakai untuk kartu ujian (±475 baris) di **Epson L5190** dengan **Kertas di printer: A4, tengah-atas** (sudah pas di kertas asli; selisih kecil dikoreksi Offset X/Y).
+
+Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`; nama repo belum diganti).
+
+**Langkah berikutnya yang tertunda:**
+- Memasang versi web di VPS (perlu info OS VPS & domain): konfigurasi Nginx + HTTPS, skrip/CI deploy.
+- Opsional: ganti nama repository GitHub ke `zavilabels`; rilis `dist/` di GitHub Releases.
 
 ## Riwayat
 
@@ -182,6 +194,12 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 - Geser teks/barcode di tampilan landscape mengikuti arah layar.
 - Toolbar preview dirapikan: dua kelompok (navigasi | cetak lembar, orientasi, zoom) yang tidak terpecah, tinggi kontrol seragam.
 
+### 2026-11-06
+
+**Perawatan**
+- Pembaruan alat build: `vite` 8.3.4 → 8.3.6, `vite-plugin-singlefile` 2.3.3 → 2.3.4. Build berhasil, `npm audit` bersih.
+- CHANGELOG: status terkini & daftar ide diperbarui.
+
 ## Keterbatasan yang diketahui
 
 - Foto per orang ikut file backup hanya bila *Sertakan foto per orang* dicentang.
@@ -192,7 +210,7 @@ Repository: <https://github.com/tantowiyyt/label-stickerapp> (branch `main`).
 
 ## Ide selanjutnya
 
-- Cetak hanya label hasil pencarian (tanpa label lain di lembarnya).
-- Foto per orang ikut file backup (opsional, karena ukurannya besar).
-- Rilis `dist/index.html` siap pakai di GitHub Releases.
-- Tema gelap.
+- Deploy ke VPS (Nginx, HTTPS, deploy otomatis lewat GitHub Actions).
+- Rilis `dist/` siap pakai di GitHub Releases.
+- Tema gelap (mode malam) di samping 5 tema terang.
+- Server khusus template bersama (opsional, tanpa data peserta) bila dipakai satu tim.
